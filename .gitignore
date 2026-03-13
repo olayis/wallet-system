@@ -1,0 +1,26 @@
+# Dependency directories
+node_modules
+jspm_packages
+
+# Optional yarn cache directory
+.yarn
+
+# Coverage directory used by tools like istanbul
+coverage
+
+# mac files
+.DS_Store
+
+# webstorm
+.idea
+
+# vscode
+.vscode
+*code-workspace
+
+# compiled app
+dist
+
+*.key
+package-lock.json
+.env
