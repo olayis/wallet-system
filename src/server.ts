@@ -1,9 +1,7 @@
-import dotenv from "dotenv";
 import app from "./app";
+import { env } from "./config/env";
 
-dotenv.config();
-
-const PORT = Number(process.env.PORT) || 3000;
+const PORT = env.PORT;
 
 const start = async () => {
   try {
