@@ -1,6 +1,6 @@
 import Fastify from "fastify";
 import dbPlugin from "./plugins/db";
-import { usersRoutes } from "./modules/users/users.route";
+import { usersRoutes } from "./modules/users/users.routes";
 
 const app = Fastify({
   logger: true,
