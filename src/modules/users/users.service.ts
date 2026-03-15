@@ -7,14 +7,26 @@ export async function createUser(
   email: string,
   password: string,
 ) {
-  const id = randomUUID();
-  const passwordHash = await bcrypt.hash(password, 10);
+  return fastify.db.transaction(async (trx) => {
+    const userId = randomUUID();
+    const walletId = randomUUID();
 
-  await fastify.db("users").insert({
-    id,
-    email,
-    password_hash: passwordHash,
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    // Create user
+    await trx("users").insert({
+      id: userId,
+      email,
+      password_hash: passwordHash,
+    });
+
+    // Create wallet automatically
+    await trx("wallets").insert({
+      id: walletId,
+      user_id: userId,
+      balance: 0,
+    });
+
+    return { id: userId, email, wallet_id: walletId };
   });
-
-  return { id, email };
 }

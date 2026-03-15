@@ -7,9 +7,7 @@ export async function createUserHandler(
   reply: FastifyReply,
 ) {
   try {
-    const parsed = createUserSchema.parse(request.body);
-
-    const { email, password } = parsed;
+    const { email, password } = createUserSchema.parse(request.body);
 
     const user = await createUser(request.server, email, password);
 
