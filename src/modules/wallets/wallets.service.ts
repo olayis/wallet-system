@@ -1,5 +1,6 @@
 import { FastifyInstance } from "fastify";
 import { randomUUID } from "crypto";
+import { Knex } from "knex";
 
 export async function depositToWallet(
   fastify: FastifyInstance,
@@ -38,60 +39,54 @@ export async function depositToWallet(
 }
 
 export async function transferBetweenUsers(
-  fastify: FastifyInstance,
+  trx: Knex.Transaction,
   fromUserId: string,
   toUserId: string,
   amount: number,
 ) {
-  return fastify.db.transaction(async (trx) => {
-    // Get sender wallet
-    const sender = await trx("wallets").where({ user_id: fromUserId }).first();
+  // Get sender wallet
+  const sender = await trx("wallets").where({ user_id: fromUserId }).first();
+  if (!sender) throw new Error("Sender wallet not found");
 
-    if (!sender) throw new Error("Sender wallet not found");
+  // Get receiver wallet
+  const receiver = await trx("wallets").where({ user_id: toUserId }).first();
+  if (!receiver) throw new Error("Receiver wallet not found");
 
-    // Get receiver wallet
-    const receiver = await trx("wallets").where({ user_id: toUserId }).first();
+  // Check balance
+  if (Number(sender.balance) < amount) throw new Error("Insufficient funds");
 
-    if (!receiver) throw new Error("Receiver wallet not found");
+  const newSenderBalance = Number(sender.balance) - amount;
+  const newReceiverBalance = Number(receiver.balance) + amount;
 
-    // Check balance
-    if (Number(sender.balance) < amount) {
-      throw new Error("Insufficient funds");
-    }
+  // Update balances
+  await trx("wallets")
+    .where({ id: sender.id })
+    .update({ balance: newSenderBalance });
 
-    const newSenderBalance = Number(sender.balance) - amount;
-    const newReceiverBalance = Number(receiver.balance) + amount;
+  await trx("wallets")
+    .where({ id: receiver.id })
+    .update({ balance: newReceiverBalance });
 
-    // Update balances
-    await trx("wallets")
-      .where({ id: sender.id })
-      .update({ balance: newSenderBalance });
+  // Record transactions
+  await trx("transactions").insert([
+    {
+      id: randomUUID(),
+      wallet_id: sender.id,
+      type: "transfer",
+      amount: -amount,
+      description: `Transfer to ${toUserId}`,
+    },
+    {
+      id: randomUUID(),
+      wallet_id: receiver.id,
+      type: "transfer",
+      amount,
+      description: `Transfer from ${fromUserId}`,
+    },
+  ]);
 
-    await trx("wallets")
-      .where({ id: receiver.id })
-      .update({ balance: newReceiverBalance });
-
-    // Record transactions
-    await trx("transactions").insert([
-      {
-        id: randomUUID(),
-        wallet_id: sender.id,
-        type: "transfer",
-        amount: -amount,
-        description: `Transfer to ${toUserId}`,
-      },
-      {
-        id: randomUUID(),
-        wallet_id: receiver.id,
-        type: "transfer",
-        amount,
-        description: `Transfer from ${fromUserId}`,
-      },
-    ]);
-
-    return {
-      from_wallet_balance: newSenderBalance,
-      to_wallet_balance: newReceiverBalance,
-    };
-  });
+  return {
+    from_wallet_balance: newSenderBalance,
+    to_wallet_balance: newReceiverBalance,
+  };
 }

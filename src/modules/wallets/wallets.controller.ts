@@ -24,6 +24,8 @@ export async function depositHandler(
       return reply.code(404).send({ error: err.message });
     }
 
+    console.error("err: ", err);
+
     request.log.error(err);
     return reply.code(500).send({ error: "Internal server error" });
   }
@@ -33,17 +35,37 @@ export async function transferHandler(
   request: FastifyRequest,
   reply: FastifyReply,
 ) {
+  const key = request.headers["idempotencyKey"];
+  const endpoint = request.url;
+
   try {
     const { from_user_id, to_user_id, amount } = transferSchema.parse(
       request.body,
     );
 
-    const result = await transferBetweenUsers(
-      request.server,
-      from_user_id,
-      to_user_id,
-      amount,
-    );
+    const result = await request.server.db.transaction(async (trx) => {
+      const existingKey = await trx("idempotency_keys")
+        .where({
+          id: key,
+          endpoint,
+        })
+        .first();
+
+      if (existingKey?.completed) return existingKey.response;
+
+      const transferResult = await transferBetweenUsers(
+        trx,
+        from_user_id,
+        to_user_id,
+        amount,
+      );
+
+      await trx("idempotency_keys")
+        .where({ id: key })
+        .update({ completed: true, response: transferResult });
+
+      return transferResult;
+    });
 
     return reply.code(200).send(result);
   } catch (err: any) {

@@ -1,6 +1,7 @@
+/// <reference path="./types/fastify.d.ts" />
 import Fastify from "fastify";
 import dbPlugin from "./plugins/db";
-import { usersRoutes } from "./modules/users/users.routes";
+import { usersRoutes } from "./modules/users/users.route";
 import { walletsRoutes } from "./modules/wallets/wallets.routes";
 
 const app = Fastify({
