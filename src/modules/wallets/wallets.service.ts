@@ -44,12 +44,20 @@ export async function transferBetweenUsers(
   toUserId: string,
   amount: number,
 ) {
-  // Get sender wallet
-  const sender = await trx("wallets").where({ user_id: fromUserId }).first();
+  // Get sender wallet & lock for update
+  const sender = await trx("wallets")
+    .where({ user_id: fromUserId })
+    .forUpdate()
+    .first();
+
   if (!sender) throw new Error("Sender wallet not found");
 
-  // Get receiver wallet
-  const receiver = await trx("wallets").where({ user_id: toUserId }).first();
+  // Get receiver wallet & lock for update
+  const receiver = await trx("wallets")
+    .where({ user_id: toUserId })
+    .forUpdate()
+    .first();
+
   if (!receiver) throw new Error("Receiver wallet not found");
 
   // Check balance
