@@ -6,10 +6,19 @@ export async function depositHandler(
   request: FastifyRequest,
   reply: FastifyReply,
 ) {
+  const key = request.headers["idempotency-key"];
+
   try {
     const { user_id, amount } = depositSchema.parse(request.body);
 
     const result = await depositToWallet(request.server, user_id, amount);
+
+    if (key) {
+      await request.server
+        .db("idempotency_keys")
+        .where({ id: key })
+        .update({ completed: true, response: result });
+    }
 
     return reply.code(200).send(result);
   } catch (err: any) {
@@ -35,7 +44,7 @@ export async function transferHandler(
   request: FastifyRequest,
   reply: FastifyReply,
 ) {
-  const key = request.headers["idempotencyKey"];
+  const key = request.headers["idempotency-key"];
   const endpoint = request.url;
 
   try {

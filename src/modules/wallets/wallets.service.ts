@@ -1,5 +1,5 @@
 import { FastifyInstance } from "fastify";
-import { randomUUID } from "crypto";
+import { randomUUID } from "node:crypto";
 import { Knex } from "knex";
 
 export async function depositToWallet(

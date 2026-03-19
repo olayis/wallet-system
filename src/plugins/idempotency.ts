@@ -1,7 +1,8 @@
+import fp from "fastify-plugin";
 import { FastifyPluginAsync } from "fastify";
 
-const idempotencyPlugin: FastifyPluginAsync = async (fastify) => {
-  fastify.decorateRequest("idempotencyKey");
+const idempotencyPlugin: FastifyPluginAsync = fp(async (fastify) => {
+  fastify.decorateRequest("idempotency-key");
 
   fastify.addHook("preHandler", async (request, reply) => {
     const key = request.headers["idempotency-key"];
@@ -9,8 +10,6 @@ const idempotencyPlugin: FastifyPluginAsync = async (fastify) => {
     if (!key) {
       return reply.status(400).send({ error: "Missing Idempotency-Key" });
     }
-
-    request.headers["idempotencyKey"] = key;
 
     const endpoint = request.url;
 
@@ -32,6 +31,6 @@ const idempotencyPlugin: FastifyPluginAsync = async (fastify) => {
       });
     }
   });
-};
+});
 
 export default idempotencyPlugin;
