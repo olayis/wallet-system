@@ -3,11 +3,25 @@ import type { Knex } from "knex";
 export async function up(knex: Knex): Promise<void> {
   await knex.schema.createTable("transactions", (table) => {
     table.uuid("id").primary();
-    table.uuid("wallet_id").notNullable().references("id").inTable("wallets");
     table.enum("type", ["deposit", "transfer"]).notNullable();
     table.decimal("amount", 14, 2).notNullable();
-    table.string("description").nullable();
-    table.timestamps(true, true);
+
+    table
+      .uuid("from_user_id")
+      .nullable()
+      .references("id")
+      .inTable("users")
+      .onDelete("SET NULL");
+
+    table
+      .uuid("to_user_id")
+      .nullable()
+      .references("id")
+      .inTable("users")
+      .onDelete("SET NULL");
+
+    table.string("status").defaultTo("completed");
+    table.timestamp("created_at").defaultTo(knex.fn.now());
   });
 }
 

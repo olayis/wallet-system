@@ -1,5 +1,9 @@
 import { FastifyInstance } from "fastify";
-import { depositHandler, transferHandler } from "./wallets.controller";
+import {
+  balanceHandler,
+  depositHandler,
+  transferHandler,
+} from "./wallets.controller";
 import idempotencyPlugin from "../../plugins/idempotency";
 
 export async function walletsRoutes(fastify: FastifyInstance) {
@@ -8,4 +12,5 @@ export async function walletsRoutes(fastify: FastifyInstance) {
     instance.post("/wallets/deposit", depositHandler);
     instance.post("/wallets/transfer", transferHandler);
   });
+  fastify.get("/wallets/:id/balance", balanceHandler);
 }

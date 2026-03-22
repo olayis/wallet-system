@@ -1,7 +1,15 @@
 import { FastifyInstance } from "fastify";
 import { randomUUID } from "node:crypto";
 import { Knex } from "knex";
+import { createLedgerEntry, getWalletBalance } from "../ledgers/ledger.service";
 
+/**
+ * Deposit funds to a user's wallet
+ * @param fastify
+ * @param userId
+ * @param amount
+ * @returns New wallet balance after deposit
+ */
 export async function depositToWallet(
   fastify: FastifyInstance,
   userId: string,
@@ -15,53 +23,68 @@ export async function depositToWallet(
       throw new Error("Wallet not found");
     }
 
-    // Update balance atomically
-    const newBalance = Number(wallet.balance) + amount;
-
+    // Update balance cache
     await trx("wallets")
       .where({ id: wallet.id })
-      .update({ balance: newBalance });
+      .update({ balance: trx.raw("balance + ?", [amount]) });
+
+    const transactionId = randomUUID();
+
+    await createLedgerEntry(trx, wallet.id, amount, "deposit", transactionId);
 
     // Insert transaction record
     await trx("transactions").insert({
-      id: randomUUID(),
-      wallet_id: wallet.id,
+      id: transactionId,
+      to_user_id: userId,
       type: "deposit",
       amount,
-      description: "Deposit",
     });
+
+    const balance = await getWalletBalance(trx, wallet.id);
 
     return {
       wallet_id: wallet.id,
-      balance: newBalance,
+      balance,
     };
   });
 }
 
+/**
+ * Transfer funds between two users' wallets
+ * @param trx
+ * @param fromUserId
+ * @param toUserId
+ * @param amount
+ * @returns New balances for both wallets after transfer
+ */
 export async function transferBetweenUsers(
   trx: Knex.Transaction,
   fromUserId: string,
   toUserId: string,
   amount: number,
 ) {
-  // Get sender wallet & lock for update
-  const sender = await trx("wallets")
-    .where({ user_id: fromUserId })
-    .forUpdate()
-    .first();
+  // Get wallets for sender and receiver
+  const wallets = await trx("wallets").whereIn("user_id", [
+    fromUserId,
+    toUserId,
+  ]);
+
+  const sender = wallets.find((wallet) => wallet.user_id === fromUserId);
+  const receiver = wallets.find((wallet) => wallet.user_id === toUserId);
 
   if (!sender) throw new Error("Sender wallet not found");
-
-  // Get receiver wallet & lock for update
-  const receiver = await trx("wallets")
-    .where({ user_id: toUserId })
-    .forUpdate()
-    .first();
-
   if (!receiver) throw new Error("Receiver wallet not found");
 
-  // Check balance
-  if (Number(sender.balance) < amount) throw new Error("Insufficient funds");
+  // Lock both rows for updates in consistent order
+  await trx("wallets")
+    .whereIn("id", [sender.id, receiver.id])
+    .orderBy("id")
+    .forUpdate();
+
+  // Check balance from ledger
+  const senderBalance = await getWalletBalance(trx, sender.id);
+
+  if (senderBalance < amount) throw new Error("Insufficient funds");
 
   const newSenderBalance = Number(sender.balance) - amount;
   const newReceiverBalance = Number(receiver.balance) + amount;
@@ -75,21 +98,20 @@ export async function transferBetweenUsers(
     .where({ id: receiver.id })
     .update({ balance: newReceiverBalance });
 
-  // Record transactions
+  const transactionId = randomUUID();
+
+  // Record ledger entries
+  await createLedgerEntry(trx, sender.id, -amount, "transfer", transactionId);
+  await createLedgerEntry(trx, receiver.id, amount, "transfer", transactionId);
+
+  // Record transaction
   await trx("transactions").insert([
     {
-      id: randomUUID(),
-      wallet_id: sender.id,
-      type: "transfer",
-      amount: -amount,
-      description: `Transfer to ${toUserId}`,
-    },
-    {
-      id: randomUUID(),
-      wallet_id: receiver.id,
+      id: transactionId,
       type: "transfer",
       amount,
-      description: `Transfer from ${fromUserId}`,
+      from_user_id: fromUserId,
+      to_user_id: toUserId,
     },
   ]);
 

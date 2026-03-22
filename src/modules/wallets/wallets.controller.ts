@@ -1,12 +1,13 @@
 import { FastifyReply, FastifyRequest } from "fastify";
 import { depositSchema, transferSchema } from "./wallets.schema";
 import { depositToWallet, transferBetweenUsers } from "./wallets.service";
+import { getWalletBalance } from "../ledgers/ledger.service";
 
 export async function depositHandler(
   request: FastifyRequest,
   reply: FastifyReply,
 ) {
-  const key = request.headers["idempotency-key"];
+  const key = request.headers["idempotency-key"] as string;
 
   try {
     const { user_id, amount } = depositSchema.parse(request.body);
@@ -33,8 +34,6 @@ export async function depositHandler(
       return reply.code(404).send({ error: err.message });
     }
 
-    console.error("err: ", err);
-
     request.log.error(err);
     return reply.code(500).send({ error: "Internal server error" });
   }
@@ -44,13 +43,17 @@ export async function transferHandler(
   request: FastifyRequest,
   reply: FastifyReply,
 ) {
-  const key = request.headers["idempotency-key"];
+  const key = request.headers["idempotency-key"] as string;
   const endpoint = request.url;
 
   try {
     const { from_user_id, to_user_id, amount } = transferSchema.parse(
       request.body,
     );
+
+    if (from_user_id === to_user_id) {
+      throw new Error("Cannot transfer to same wallet");
+    }
 
     const result = await request.server.db.transaction(async (trx) => {
       const existingKey = await trx("idempotency_keys")
@@ -84,11 +87,28 @@ export async function transferHandler(
 
     if (
       err.message === "Insufficient funds" ||
+      err.message === "Cannot transfer to same wallet" ||
       err.message.includes("not found")
     ) {
       return reply.code(400).send({ error: err.message });
     }
 
+    request.log.error(err);
+    return reply.code(500).send({ error: "Internal server error" });
+  }
+}
+
+export async function balanceHandler(
+  request: FastifyRequest,
+  reply: FastifyReply,
+) {
+  try {
+    const { id } = request.params as any;
+
+    const balance = await getWalletBalance(request.server.db, id);
+
+    return { balance };
+  } catch (err: any) {
     request.log.error(err);
     return reply.code(500).send({ error: "Internal server error" });
   }
