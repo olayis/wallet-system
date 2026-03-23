@@ -8,9 +8,9 @@ export async function up(knex: Knex): Promise<void> {
     table.foreign("wallet_id").references("id").inTable("wallets");
 
     table.decimal("amount", 14, 2).notNullable();
-    table.string("type").notNullable(); // deposit, transfer
+    table.enum("type", ["deposit", "transfer"]).notNullable();
 
-    table.string("reference").notNullable();
+    table.uuid("reference").notNullable();
 
     table.timestamp("created_at").defaultTo(knex.fn.now());
   });
