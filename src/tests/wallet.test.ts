@@ -2,9 +2,9 @@ import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { server } from "./setup";
 import request from "supertest";
+import { TEST_PASSWORD_HASH } from "../constants/testVariables";
 
 const getTestServer = () => server();
-const TEST_PASSWORD_HASH = process.env.TEST_PASSWORD_HASH || "test_hash_dev";
 
 describe("Wallet System", () => {
   it("should deposit successfully", async () => {

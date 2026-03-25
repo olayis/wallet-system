@@ -2,8 +2,8 @@ import { randomUUID } from "node:crypto";
 import { expect, it } from "vitest";
 import { server } from "./setup";
 import request from "supertest";
+import { TEST_PASSWORD_HASH } from "../constants/testVariables";
 
-const TEST_PASSWORD_HASH = process.env.TEST_PASSWORD_HASH || "test_hash_dev";
 const getTestServer = () => server();
 
 it("should transfer between users", async () => {
