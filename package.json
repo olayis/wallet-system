@@ -16,7 +16,11 @@
     "dotenv": "^17.3.1",
     "fastify": "^5.8.2",
     "fastify-plugin": "^5.1.0",
+    "http-status": "^2.1.0",
+    "objection": "^3.1.5",
     "pg": "^8.20.0",
+    "reflect-metadata": "^0.2.2",
+    "tsyringe": "^4.10.0",
     "vitest": "^4.1.0",
     "zod": "^4.3.6"
   },
