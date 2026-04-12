@@ -1,5 +1,6 @@
-import type { Knex } from "knex";
+import { knex, type Knex } from "knex";
 import { env } from "./env";
+import { Model } from "objection";
 
 const config: Knex.Config = {
   client: "pg",
@@ -20,4 +21,8 @@ const config: Knex.Config = {
   },
 };
 
-export default config;
+const db = knex(config);
+
+Model.knex(db);
+
+export default db;
