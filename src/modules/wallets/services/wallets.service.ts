@@ -67,6 +67,8 @@ export class WalletService {
   }
 
   async transferBetweenUsers(fromUserId: string, toUserId: string, amount: number, idempotencyKey?: string) {
+    if (fromUserId === toUserId) throw new Error("Cannot transfer to same wallet");
+
     return await Wallet.transaction(async (trx) => {
       // Lock both wallets in consistent order to prevent deadlocks
       const wallets = await this.walletRepository.lockWalletsByUserIds([fromUserId, toUserId], trx);

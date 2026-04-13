@@ -10,7 +10,7 @@ export class WalletController {
   deposit = async (req: FastifyRequest, res: FastifyReply) => {
     const key = req.headers["idempotency-key"] as string;
 
-    const { user_id, amount } = depositSchema.parse(req.body);
+    const { user_id, amount } = req.body as { user_id: string; amount: number };
 
     const result = await this.walletService.depositToWallet(user_id, amount, key);
 
@@ -20,9 +20,11 @@ export class WalletController {
   transfer = async (req: FastifyRequest, res: FastifyReply) => {
     const key = req.headers["idempotency-key"] as string;
 
-    const { from_user_id, to_user_id, amount } = transferSchema.parse(req.body);
-
-    if (from_user_id === to_user_id) return res.status(400).send({ error: "Cannot transfer to same wallet" });
+    const { from_user_id, to_user_id, amount } = req.body as {
+      from_user_id: string;
+      to_user_id: string;
+      amount: number;
+    };
 
     const result = await this.walletService.transferBetweenUsers(from_user_id, to_user_id, amount, key);
 
