@@ -2,9 +2,9 @@ import { Model, QueryBuilder, Transaction } from "objection";
 import { ObjectLiteral } from "../../types/object-literal.type";
 
 export class BaseRepository<M extends Model> {
-  protected model: typeof Model | any;
+  protected model: any;
 
-  constructor(model: M | any) {
+  constructor(model: any) {
     this.model = model;
   }
 

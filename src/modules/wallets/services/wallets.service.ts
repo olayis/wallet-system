@@ -4,16 +4,18 @@ import { LedgerRepository } from "../../ledgers/repositories/ledgers.repository"
 import { TransactionRepository } from "../repositories/transactions.repository";
 import { Wallet } from "../models/wallet.model";
 import { randomUUID } from "node:crypto";
+import { IdempotencyRepository } from "../../../shared/idempotency/repositories/idempotency.repository";
 
 @injectable()
 export class WalletService {
   constructor(
-    private walletRepository: WalletRepository,
-    private ledgerRepository: LedgerRepository,
-    private transactionRepository: TransactionRepository,
+    private readonly walletRepository: WalletRepository,
+    private readonly ledgerRepository: LedgerRepository,
+    private readonly transactionRepository: TransactionRepository,
+    private readonly idempotencyRepository: IdempotencyRepository,
   ) {}
 
-  async depositToWallet(userId: string, amount: number) {
+  async depositToWallet(userId: string, amount: number, idempotencyKey?: string) {
     return await Wallet.transaction(async (trx) => {
       const wallet = await this.walletRepository.findByUserId(userId, trx);
 
@@ -47,11 +49,24 @@ export class WalletService {
 
       const newBalance = await this.ledgerRepository.getBalanceByWalletId(wallet.id, trx);
 
-      return { wallet_id: wallet.id, balance: newBalance };
+      const result = { wallet_id: wallet.id, balance: newBalance };
+
+      if (idempotencyKey) {
+        await this.idempotencyRepository.updateById(
+          idempotencyKey,
+          {
+            completed: true,
+            response: JSON.stringify(result),
+          },
+          trx,
+        );
+      }
+
+      return result;
     });
   }
 
-  async transferBetweenUsers(fromUserId: string, toUserId: string, amount: number) {
+  async transferBetweenUsers(fromUserId: string, toUserId: string, amount: number, idempotencyKey?: string) {
     return await Wallet.transaction(async (trx) => {
       // Lock both wallets in consistent order to prevent deadlocks
       const wallets = await this.walletRepository.lockWalletsByUserIds([fromUserId, toUserId], trx);
@@ -103,11 +118,24 @@ export class WalletService {
         trx,
       );
 
-      return {
+      const result = {
         from_wallet_id: sender.id,
         to_wallet_id: receiver.id,
         amount,
       };
+
+      if (idempotencyKey) {
+        await this.idempotencyRepository.updateById(
+          idempotencyKey,
+          {
+            completed: true,
+            response: JSON.stringify(result),
+          },
+          trx,
+        );
+      }
+
+      return result;
     });
   }
 }

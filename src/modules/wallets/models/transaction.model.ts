@@ -2,7 +2,7 @@ import { Model } from "objection";
 import { DB_TABLES } from "../../../shared/enums/db-tables.enum";
 
 export class Transaction extends Model {
-  static tableName = DB_TABLES.TRANSACTIONS;
+  static readonly tableName = DB_TABLES.TRANSACTIONS;
 
   id: string;
   type: string;
