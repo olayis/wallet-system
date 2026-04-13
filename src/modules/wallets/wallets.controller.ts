@@ -1,6 +1,6 @@
 import { FastifyReply, FastifyRequest } from "fastify";
 import { depositSchema, transferSchema } from "./wallets.schema";
-import { depositToWallet, transferBetweenUsers } from "./wallets.service";
+import { depositToWallet, transferBetweenUsers } from "./services/wallets.service";
 import { getWalletBalance } from "../ledgers/ledgers.service";
 
 export async function depositHandler(request: FastifyRequest, reply: FastifyReply) {

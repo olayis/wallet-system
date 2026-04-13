@@ -28,6 +28,10 @@ export class BaseRepository<M extends Model> {
     return await this.query(trx).insert(data).returning("*");
   }
 
+  async saveBulk(data: any[], trx?: Transaction): Promise<M> {
+    return await this.query(trx).insert(data).returning("*");
+  }
+
   async updateById(id: string, data: any, trx?: Transaction): Promise<M> {
     return await this.query(trx).patchAndFetchById(id, data);
   }
