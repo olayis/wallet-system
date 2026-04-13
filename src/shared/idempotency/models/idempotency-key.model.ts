@@ -6,7 +6,7 @@ export class IdempotencyKey extends Model {
 
   id: string;
   endpoint: string;
-  response?: string;
-  completed: string;
+  response?: any;
+  completed: boolean;
   created_at: string;
 }

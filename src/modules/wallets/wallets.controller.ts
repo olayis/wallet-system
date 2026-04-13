@@ -1,12 +1,9 @@
 import { FastifyReply, FastifyRequest } from "fastify";
 import { depositSchema, transferSchema } from "./wallets.schema";
 import { depositToWallet, transferBetweenUsers } from "./wallets.service";
-import { getWalletBalance } from "../ledgers/ledger.service";
+import { getWalletBalance } from "../ledgers/ledgers.service";
 
-export async function depositHandler(
-  request: FastifyRequest,
-  reply: FastifyReply,
-) {
+export async function depositHandler(request: FastifyRequest, reply: FastifyReply) {
   const key = request.headers["idempotency-key"] as string;
 
   try {
@@ -15,10 +12,7 @@ export async function depositHandler(
     const result = await depositToWallet(request.server, user_id, amount);
 
     if (key) {
-      await request.server
-        .db("idempotency_keys")
-        .where({ id: key })
-        .update({ completed: true, response: result });
+      await request.server.db("idempotency_keys").where({ id: key }).update({ completed: true, response: result });
     }
 
     return reply.code(200).send(result);
@@ -39,17 +33,12 @@ export async function depositHandler(
   }
 }
 
-export async function transferHandler(
-  request: FastifyRequest,
-  reply: FastifyReply,
-) {
+export async function transferHandler(request: FastifyRequest, reply: FastifyReply) {
   const key = request.headers["idempotency-key"] as string;
   const endpoint = request.url;
 
   try {
-    const { from_user_id, to_user_id, amount } = transferSchema.parse(
-      request.body,
-    );
+    const { from_user_id, to_user_id, amount } = transferSchema.parse(request.body);
 
     if (from_user_id === to_user_id) {
       throw new Error("Cannot transfer to same wallet");
@@ -65,16 +54,9 @@ export async function transferHandler(
 
       if (existingKey?.completed) return existingKey.response;
 
-      const transferResult = await transferBetweenUsers(
-        trx,
-        from_user_id,
-        to_user_id,
-        amount,
-      );
+      const transferResult = await transferBetweenUsers(trx, from_user_id, to_user_id, amount);
 
-      await trx("idempotency_keys")
-        .where({ id: key })
-        .update({ completed: true, response: transferResult });
+      await trx("idempotency_keys").where({ id: key }).update({ completed: true, response: transferResult });
 
       return transferResult;
     });
@@ -98,10 +80,7 @@ export async function transferHandler(
   }
 }
 
-export async function balanceHandler(
-  request: FastifyRequest,
-  reply: FastifyReply,
-) {
+export async function balanceHandler(request: FastifyRequest, reply: FastifyReply) {
   try {
     const { id } = request.params as any;
 

@@ -1,7 +1,7 @@
 import { FastifyInstance } from "fastify";
 import { randomUUID } from "node:crypto";
 import { Knex } from "knex";
-import { createLedgerEntry, getWalletBalance } from "../ledgers/ledger.service";
+import { createLedgerEntry, getWalletBalance } from "../ledgers/ledgers.service";
 
 /**
  * Deposit funds to a user's wallet
@@ -10,11 +10,7 @@ import { createLedgerEntry, getWalletBalance } from "../ledgers/ledger.service";
  * @param amount
  * @returns New wallet balance after deposit
  */
-export async function depositToWallet(
-  fastify: FastifyInstance,
-  userId: string,
-  amount: number,
-) {
+export async function depositToWallet(fastify: FastifyInstance, userId: string, amount: number) {
   return fastify.db.transaction(async (trx) => {
     // Find user wallet
     const wallet = await trx("wallets").where({ user_id: userId }).first();
@@ -64,10 +60,7 @@ export async function transferBetweenUsers(
   amount: number,
 ) {
   // Get wallets for sender and receiver
-  const wallets = await trx("wallets").whereIn("user_id", [
-    fromUserId,
-    toUserId,
-  ]);
+  const wallets = await trx("wallets").whereIn("user_id", [fromUserId, toUserId]);
 
   const sender = wallets.find((wallet) => wallet.user_id === fromUserId);
   const receiver = wallets.find((wallet) => wallet.user_id === toUserId);
@@ -76,10 +69,7 @@ export async function transferBetweenUsers(
   if (!receiver) throw new Error("Receiver wallet not found");
 
   // Lock both rows for updates in consistent order
-  await trx("wallets")
-    .whereIn("id", [sender.id, receiver.id])
-    .orderBy("id")
-    .forUpdate();
+  await trx("wallets").whereIn("id", [sender.id, receiver.id]).orderBy("id").forUpdate();
 
   // Check balance from ledger
   const senderBalance = await getWalletBalance(trx, sender.id);
@@ -90,13 +80,9 @@ export async function transferBetweenUsers(
   const newReceiverBalance = Number(receiver.balance) + amount;
 
   // Update balances
-  await trx("wallets")
-    .where({ id: sender.id })
-    .update({ balance: newSenderBalance });
+  await trx("wallets").where({ id: sender.id }).update({ balance: newSenderBalance });
 
-  await trx("wallets")
-    .where({ id: receiver.id })
-    .update({ balance: newReceiverBalance });
+  await trx("wallets").where({ id: receiver.id }).update({ balance: newReceiverBalance });
 
   const transactionId = randomUUID();
 

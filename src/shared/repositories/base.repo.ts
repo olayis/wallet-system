@@ -2,7 +2,7 @@ import { Model, QueryBuilder, Transaction } from "objection";
 import { ObjectLiteral } from "../../types/object-literal.type";
 
 export class BaseRepository<M extends Model> {
-  private model: typeof Model | any;
+  protected model: typeof Model | any;
 
   constructor(model: M | any) {
     this.model = model;
@@ -16,10 +16,7 @@ export class BaseRepository<M extends Model> {
     return await this.query(trx).findById(id);
   }
 
-  async findOne(
-    criteria: ObjectLiteral,
-    trx?: Transaction,
-  ): Promise<M | undefined> {
+  async findOne(criteria: ObjectLiteral, trx?: Transaction): Promise<M | undefined> {
     return await this.query(trx).findOne(criteria);
   }
 
