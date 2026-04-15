@@ -1,7 +1,8 @@
 /// <reference path="./types/fastify.d.ts" />
+import "reflect-metadata";
 import Fastify from "fastify";
 import dbPlugin from "./plugins/db";
-import { usersRoutes } from "./modules/users/users.route";
+import userRoute from "./modules/users/routes/users.route";
 import walletRoute from "./modules/wallets/routes/wallets.routes";
 
 const app = Fastify({
@@ -9,7 +10,7 @@ const app = Fastify({
 });
 
 app.register(dbPlugin);
-app.register(usersRoutes);
+app.register(userRoute);
 app.register(walletRoute);
 
 app.get("/health", async () => {

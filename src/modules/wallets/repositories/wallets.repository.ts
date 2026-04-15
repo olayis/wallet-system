@@ -24,6 +24,11 @@ export class WalletRepository extends BaseRepository<Wallet> {
   async incrementBalance(walletId: string, amount: number, trx?: Transaction): Promise<void> {
     await this.query(trx)
       .findById(walletId)
-      .patch({ balance: this.model.raw("balance + ?", [amount]) });
+      .patch({ balance: this.model.raw("balance + ?", [amount]) })
+      .returning("*");
+  }
+
+  async createWallet(id: string, userId: string, trx?: Transaction): Promise<Wallet> {
+    return await this.save({ id, user_id: userId, balance: 0 }, trx);
   }
 }

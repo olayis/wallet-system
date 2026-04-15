@@ -1,4 +1,4 @@
-import { Model, QueryBuilder, Transaction } from "objection";
+import { Model, Transaction } from "objection";
 import { ObjectLiteral } from "../../types/object-literal.type";
 
 export class BaseRepository<M extends Model> {

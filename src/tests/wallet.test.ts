@@ -1,3 +1,4 @@
+import "reflect-metadata";
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { server } from "./setup";

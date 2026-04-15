@@ -1,7 +1,6 @@
 import { injectable } from "tsyringe";
 import { WalletService } from "../services/wallets.service";
 import { FastifyReply, FastifyRequest } from "fastify";
-import { depositSchema, transferSchema } from "../schemas/wallets.schema";
 
 @injectable()
 export class WalletController {
@@ -14,7 +13,7 @@ export class WalletController {
 
     const result = await this.walletService.depositToWallet(user_id, amount, key);
 
-    return res.status(200).send(result);
+    return res.status(201).send(result);
   };
 
   transfer = async (req: FastifyRequest, res: FastifyReply) => {

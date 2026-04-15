@@ -5,6 +5,7 @@ import { TransactionRepository } from "../repositories/transactions.repository";
 import { Wallet } from "../models/wallet.model";
 import { randomUUID } from "node:crypto";
 import { IdempotencyRepository } from "../../../shared/idempotency/repositories/idempotency.repository";
+import { Transaction } from "objection";
 
 @injectable()
 export class WalletService {
@@ -17,9 +18,7 @@ export class WalletService {
 
   async depositToWallet(userId: string, amount: number, idempotencyKey?: string) {
     return await Wallet.transaction(async (trx) => {
-      const wallet = await this.walletRepository.findByUserId(userId, trx);
-
-      if (!wallet) throw new Error("Wallet not found");
+      const wallet = await this.getWalletByUserId(userId, trx);
 
       const transactionId = randomUUID();
 
@@ -39,28 +38,22 @@ export class WalletService {
       );
 
       // Record Transaction
-      await this.transactionRepository.save({
-        amount,
-        id: transactionId,
-        to_user_id: userId,
-        type: "deposit",
-        status: "completed",
-      });
+      await this.transactionRepository.save(
+        {
+          amount,
+          id: transactionId,
+          to_user_id: userId,
+          type: "deposit",
+          status: "completed",
+        },
+        trx,
+      );
 
       const newBalance = await this.ledgerRepository.getBalanceByWalletId(wallet.id, trx);
 
       const result = { wallet_id: wallet.id, balance: newBalance };
 
-      if (idempotencyKey) {
-        await this.idempotencyRepository.updateById(
-          idempotencyKey,
-          {
-            completed: true,
-            response: JSON.stringify(result),
-          },
-          trx,
-        );
-      }
+      if (idempotencyKey) this.trackIdempotency(idempotencyKey, result, trx);
 
       return result;
     });
@@ -126,18 +119,28 @@ export class WalletService {
         amount,
       };
 
-      if (idempotencyKey) {
-        await this.idempotencyRepository.updateById(
-          idempotencyKey,
-          {
-            completed: true,
-            response: JSON.stringify(result),
-          },
-          trx,
-        );
-      }
+      if (idempotencyKey) this.trackIdempotency(idempotencyKey, result, trx);
 
       return result;
     });
+  }
+
+  private async getWalletByUserId(userId: string, trx: Transaction) {
+    const findWallet = await this.walletRepository.findByUserId(userId, trx);
+
+    if (!findWallet) throw new Error("Wallet not found");
+
+    return findWallet;
+  }
+
+  private async trackIdempotency(idempotencyKey: string, result: any, trx: Transaction) {
+    await this.idempotencyRepository.updateById(
+      idempotencyKey,
+      {
+        completed: true,
+        response: JSON.stringify(result),
+      },
+      trx,
+    );
   }
 }

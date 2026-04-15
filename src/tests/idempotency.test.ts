@@ -1,3 +1,4 @@
+import "reflect-metadata";
 import { randomUUID } from "node:crypto";
 import { expect, it } from "vitest";
 import { server } from "./setup";
@@ -23,21 +24,15 @@ it("should not duplicate transaction with same idempotency key", async () => {
 
   const key = randomUUID();
 
-  await request(getTestServer().server)
-    .post("/wallets/deposit")
-    .set("Idempotency-Key", key)
-    .send({
-      user_id: userId,
-      amount: 5000,
-    });
+  await request(getTestServer().server).post("/wallets/deposit").set("Idempotency-Key", key).send({
+    user_id: userId,
+    amount: 5000,
+  });
 
-  await request(getTestServer().server)
-    .post("/wallets/deposit")
-    .set("Idempotency-Key", key)
-    .send({
-      user_id: userId,
-      amount: 5000,
-    });
+  await request(getTestServer().server).post("/wallets/deposit").set("Idempotency-Key", key).send({
+    user_id: userId,
+    amount: 5000,
+  });
 
   const ledger = await getTestServer().db("ledger_entries");
 

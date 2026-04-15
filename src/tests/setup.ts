@@ -1,3 +1,4 @@
+import "reflect-metadata";
 import { beforeAll, afterAll, beforeEach } from "vitest";
 import app from "../app";
 
