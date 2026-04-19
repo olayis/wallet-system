@@ -10,6 +10,7 @@ export class Transaction extends Model {
   from_user_id?: string;
   to_user_id?: string;
   status: string;
+  idempotency_key?: string;
   created_at: string;
 }
 

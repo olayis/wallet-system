@@ -21,7 +21,6 @@ beforeEach(async () => {
   await db("transactions").del();
   await db("wallets").del();
   await db("users").del();
-  await db("idempotency_keys").del();
 });
 
 afterAll(async () => {

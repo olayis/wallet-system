@@ -16,5 +16,9 @@ export const transferSchema = z
     path: ["toUserId"],
   });
 
+export const getWalletBalanceSchema = z.object({
+  userId: z.uuid({ message: "Invalid User ID format" }),
+});
+
 export type DepositRequest = z.infer<typeof depositSchema>;
 export type TransferRequest = z.infer<typeof transferSchema>;

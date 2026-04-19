@@ -3,9 +3,10 @@ import z from "zod";
 import httpStatus from "http-status";
 import { ErrorResponse } from "../utils/response.util";
 
-const validate = <T>(schema: z.ZodType<T, any, any>) => {
+const validate = <T>(schema: z.ZodType<T, any, any>, target: "body" | "query" | "params" = "body") => {
   return async (req: FastifyRequest, res: FastifyReply) => {
-    const result = schema.safeParse(req.body);
+    const dataToValidate = req[target];
+    const result = schema.safeParse(dataToValidate);
 
     if (!result.success) {
       const formattedErrors = result.error.issues.map((err) => ({
@@ -20,7 +21,7 @@ const validate = <T>(schema: z.ZodType<T, any, any>) => {
         .send(ErrorResponse(firstErrorMessage ?? "Your data is invalid", formattedErrors));
     }
 
-    req.body = result.data;
+    req[target] = result.data;
   };
 };
 

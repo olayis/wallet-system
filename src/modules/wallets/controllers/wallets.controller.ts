@@ -24,4 +24,12 @@ export class WalletController {
 
     return res.status(httpStatus.OK).send(SuccessResponse("Transfer successful", result));
   };
+
+  getBalance = async (req: FastifyRequest<{ Params: { userId: string } }>, res: FastifyReply) => {
+    const { userId } = req.params;
+
+    const result = await this.walletService.getWalletBalance(userId);
+
+    return res.status(httpStatus.OK).send(SuccessResponse("Balance retrieved successfully", result));
+  };
 }
