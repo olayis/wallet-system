@@ -4,6 +4,8 @@ import { WalletRepository } from "../../wallets/repositories/wallets.repository"
 import { User } from "../models/user.model";
 import { randomUUID } from "node:crypto";
 import bcrypt from "bcrypt";
+import DuplicateError from "../../../shared/error/duplicate.error";
+import { CreateUserRequest } from "../schemas/users.schema";
 
 @injectable()
 export class UserService {
@@ -12,21 +14,33 @@ export class UserService {
     private readonly walletRepository: WalletRepository,
   ) {}
 
-  async createUser(email: string, password: string) {
-    return await User.transaction(async (trx) => {
-      const userId = randomUUID();
+  async createUser(data: CreateUserRequest) {
+    try {
+      const { email, password } = data;
 
-      const passwordHash = await bcrypt.hash(password, 10);
+      return await User.transaction(async (trx) => {
+        // Create user
+        const userId = randomUUID();
 
-      // Create user
-      await this.userRepository.createUser(userId, email, passwordHash, trx);
+        const passwordHash = await bcrypt.hash(password, 10);
 
-      const walletId = randomUUID();
+        await this.userRepository.createUser(userId, email, passwordHash, trx);
 
-      // Create wallet
-      await this.walletRepository.createWallet(walletId, userId, trx);
+        // Create wallet
+        const walletId = randomUUID();
 
-      return { id: userId, email, wallet_id: walletId };
-    });
+        await this.walletRepository.createWallet(walletId, userId, trx);
+
+        return { id: userId, email, walletId };
+      });
+    } catch (err: any) {
+      const errorCode = err.code || err?.nativeError?.code;
+
+      if (err.name === "UniqueViolationError" || errorCode === "23505") {
+        throw new DuplicateError("Email already exists");
+      }
+
+      throw err;
+    }
   }
 }

@@ -1,17 +1,20 @@
 import { z } from "zod";
 
 export const depositSchema = z.object({
-  user_id: z.uuid(),
-  amount: z.number().positive(),
+  userId: z.uuid({ message: "Invalid User ID format" }),
+  amount: z.number({ message: "Amount is required" }).positive({ message: "Amount must be a positive number" }),
 });
 
 export const transferSchema = z
   .object({
-    from_user_id: z.uuid(),
-    to_user_id: z.uuid(),
-    amount: z.number().positive(),
+    fromUserId: z.uuid({ message: "Invalid Sender User ID format" }),
+    toUserId: z.uuid({ message: "Invalid Recipient User ID format" }),
+    amount: z.number({ message: "Amount is required" }).positive({ message: "Amount must be a positive number" }),
   })
-  .refine((data) => data.from_user_id !== data.to_user_id, {
-    message: "Cannot transfer to same wallet",
-    path: ["to_user_id"],
+  .refine((data) => data.fromUserId !== data.toUserId, {
+    message: "Cannot transfer to the same wallet",
+    path: ["toUserId"],
   });
+
+export type DepositRequest = z.infer<typeof depositSchema>;
+export type TransferRequest = z.infer<typeof transferSchema>;

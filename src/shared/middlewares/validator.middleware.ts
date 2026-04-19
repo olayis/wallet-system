@@ -1,5 +1,7 @@
 import { FastifyReply, FastifyRequest } from "fastify";
 import z from "zod";
+import httpStatus from "http-status";
+import { ErrorResponse } from "../utils/response.util";
 
 const validate = <T>(schema: z.ZodType<T, any, any>) => {
   return async (req: FastifyRequest, res: FastifyReply) => {
@@ -11,10 +13,11 @@ const validate = <T>(schema: z.ZodType<T, any, any>) => {
         message: err.message,
       }));
 
-      return res.status(400).send({
-        error: "Your data is invalid",
-        issues: formattedErrors,
-      });
+      const firstErrorMessage = formattedErrors[0]?.message;
+
+      return res
+        .status(httpStatus.BAD_REQUEST)
+        .send(ErrorResponse(firstErrorMessage ?? "Your data is invalid", formattedErrors));
     }
 
     req.body = result.data;

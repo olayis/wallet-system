@@ -6,6 +6,9 @@ import { Wallet } from "../models/wallet.model";
 import { randomUUID } from "node:crypto";
 import { IdempotencyRepository } from "../../../shared/idempotency/repositories/idempotency.repository";
 import { Transaction } from "objection";
+import NotFoundError from "../../../shared/error/not-found.error";
+import InvalidRequestError from "../../../shared/error/invalid-request.error";
+import { DepositRequest, TransferRequest } from "../schemas/wallets.schema";
 
 @injectable()
 export class WalletService {
@@ -16,7 +19,9 @@ export class WalletService {
     private readonly idempotencyRepository: IdempotencyRepository,
   ) {}
 
-  async depositToWallet(userId: string, amount: number, idempotencyKey?: string) {
+  async depositToWallet(data: DepositRequest, idempotencyKey?: string) {
+    const { userId, amount } = data;
+
     return await Wallet.transaction(async (trx) => {
       const wallet = await this.getWalletByUserId(userId, trx);
 
@@ -51,16 +56,18 @@ export class WalletService {
 
       const newBalance = await this.ledgerRepository.getBalanceByWalletId(wallet.id, trx);
 
-      const result = { wallet_id: wallet.id, balance: newBalance };
+      const result = { walletId: wallet.id, balance: newBalance };
 
-      if (idempotencyKey) this.trackIdempotency(idempotencyKey, result, trx);
+      if (idempotencyKey) await this.trackIdempotency(idempotencyKey, result, trx);
 
       return result;
     });
   }
 
-  async transferBetweenUsers(fromUserId: string, toUserId: string, amount: number, idempotencyKey?: string) {
-    if (fromUserId === toUserId) throw new Error("Cannot transfer to same wallet");
+  async transferBetweenUsers(data: TransferRequest, idempotencyKey?: string) {
+    const { fromUserId, toUserId, amount } = data;
+
+    if (fromUserId === toUserId) throw new InvalidRequestError("Cannot transfer to same wallet");
 
     return await Wallet.transaction(async (trx) => {
       // Lock both wallets in consistent order to prevent deadlocks
@@ -69,13 +76,13 @@ export class WalletService {
       const sender = wallets.find((wallet) => wallet.user_id === fromUserId);
       const receiver = wallets.find((wallet) => wallet.user_id === toUserId);
 
-      if (!sender) throw new Error("Sender wallet not found");
-      if (!receiver) throw new Error("Receiver wallet not found");
+      if (!sender) throw new NotFoundError("Sender wallet not found");
+      if (!receiver) throw new NotFoundError("Receiver wallet not found");
 
       // Check Balance from ledger
       const senderBalance = await this.ledgerRepository.getBalanceByWalletId(sender.id, trx);
 
-      if (senderBalance < amount) throw new Error("Insufficient funds");
+      if (senderBalance < amount) throw new InvalidRequestError("Insufficient funds");
 
       const transactionId = randomUUID();
 
@@ -114,12 +121,12 @@ export class WalletService {
       );
 
       const result = {
-        from_wallet_id: sender.id,
-        to_wallet_id: receiver.id,
+        fromWalletId: sender.id,
+        toWalletId: receiver.id,
         amount,
       };
 
-      if (idempotencyKey) this.trackIdempotency(idempotencyKey, result, trx);
+      if (idempotencyKey) await this.trackIdempotency(idempotencyKey, result, trx);
 
       return result;
     });
@@ -128,7 +135,7 @@ export class WalletService {
   private async getWalletByUserId(userId: string, trx: Transaction) {
     const findWallet = await this.walletRepository.findByUserId(userId, trx);
 
-    if (!findWallet) throw new Error("Wallet not found");
+    if (!findWallet) throw new NotFoundError("Wallet not found");
 
     return findWallet;
   }

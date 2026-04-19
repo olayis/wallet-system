@@ -11,7 +11,12 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
+  "_moduleAliases": {
+    "@config": "src/config",
+    "@shared": "src/shared"
+  },
   "dependencies": {
+    "module-alias": "^2.2.3",
     "bcrypt": "^6.0.0",
     "dotenv": "^17.3.1",
     "fastify": "^5.8.2",
@@ -26,6 +31,7 @@
   },
   "devDependencies": {
     "@types/bcrypt": "^6.0.0",
+    "@types/module-alias": "^2.0.4",
     "@types/node": "^25.5.0",
     "@types/supertest": "^7.2.0",
     "eslint": "^10.0.3",

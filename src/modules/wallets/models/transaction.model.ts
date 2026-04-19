@@ -1,4 +1,4 @@
-import { Model } from "objection";
+import { Model, ModelObject } from "objection";
 import { DB_TABLES } from "../../../shared/enums/db-tables.enum";
 
 export class Transaction extends Model {
@@ -12,3 +12,5 @@ export class Transaction extends Model {
   status: string;
   created_at: string;
 }
+
+export type ITransaction = ModelObject<Transaction>;

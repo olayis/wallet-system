@@ -1,4 +1,4 @@
-import { Model } from "objection";
+import { Model, ModelObject } from "objection";
 import { DB_TABLES } from "../../enums/db-tables.enum";
 
 export class IdempotencyKey extends Model {
@@ -10,3 +10,5 @@ export class IdempotencyKey extends Model {
   completed: boolean;
   created_at: string;
 }
+
+export type IIdempotencyKey = ModelObject<IdempotencyKey>;

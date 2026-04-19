@@ -1,14 +1,14 @@
 import { type Knex } from "knex";
-import { env } from "./env";
+import appConfig from "./app.config";
 
 const config: Knex.Config = {
   client: "pg",
   connection: {
-    host: env.DB_HOST,
-    port: env.DB_PORT,
-    database: env.DB_NAME,
-    user: env.DB_USER,
-    password: env.DB_PASSWORD,
+    host: appConfig.database.host,
+    port: appConfig.database.port,
+    database: appConfig.database.name,
+    user: appConfig.database.user,
+    password: appConfig.database.password,
   },
   migrations: {
     directory: "./src/db/migrations",

@@ -17,6 +17,11 @@
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
     "strictPropertyInitialization": false,
+    "baseUrl": ".",
+    "paths": {
+      "@config/*": ["src/config/*"],
+      "@shared/*": ["src/shared/*"]
+    }
   },
   "include": ["src"]
 }

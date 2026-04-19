@@ -1,10 +1,9 @@
 import fp from "fastify-plugin";
 import { FastifyInstance } from "fastify";
-import knex from "knex";
-import config from "../config/knex";
+import { getKnexInstance } from "../database";
 
 async function dbPlugin(app: FastifyInstance) {
-  const db = knex(config);
+  const db = getKnexInstance();
 
   app.decorate("db", db);
 

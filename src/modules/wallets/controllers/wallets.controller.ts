@@ -1,32 +1,27 @@
 import { injectable } from "tsyringe";
-import { WalletService } from "../services/wallets.service";
 import { FastifyReply, FastifyRequest } from "fastify";
+import httpStatus from "http-status";
+import { WalletService } from "../services/wallets.service";
+import { SuccessResponse } from "../../../shared/utils/response.util";
+import { DepositRequest, TransferRequest } from "../schemas/wallets.schema";
 
 @injectable()
 export class WalletController {
   constructor(private readonly walletService: WalletService) {}
 
-  deposit = async (req: FastifyRequest, res: FastifyReply) => {
-    const key = req.headers["idempotency-key"] as string;
+  deposit = async (req: FastifyRequest<{ Body: DepositRequest }>, res: FastifyReply) => {
+    const key = req.headers["idempotencyKey"] as string;
 
-    const { user_id, amount } = req.body as { user_id: string; amount: number };
+    const result = await this.walletService.depositToWallet(req.body, key);
 
-    const result = await this.walletService.depositToWallet(user_id, amount, key);
-
-    return res.status(201).send(result);
+    return res.status(httpStatus.CREATED).send(SuccessResponse("Deposit successful", result));
   };
 
-  transfer = async (req: FastifyRequest, res: FastifyReply) => {
-    const key = req.headers["idempotency-key"] as string;
+  transfer = async (req: FastifyRequest<{ Body: TransferRequest }>, res: FastifyReply) => {
+    const key = req.headers["idempotencyKey"] as string;
 
-    const { from_user_id, to_user_id, amount } = req.body as {
-      from_user_id: string;
-      to_user_id: string;
-      amount: number;
-    };
+    const result = await this.walletService.transferBetweenUsers(req.body, key);
 
-    const result = await this.walletService.transferBetweenUsers(from_user_id, to_user_id, amount, key);
-
-    return res.status(200).send(result);
+    return res.status(httpStatus.OK).send(SuccessResponse("Transfer successful", result));
   };
 }

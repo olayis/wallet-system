@@ -1,8 +1,9 @@
 import "reflect-metadata";
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { server } from "./setup";
 import request from "supertest";
+import httpStatus from "http-status";
+import { server, dbNode } from "./setup";
 import { TEST_PASSWORD_HASH } from "../constants/testVariables";
 
 const getTestServer = () => server();
@@ -12,7 +13,7 @@ describe("Wallet System", () => {
     const userId = randomUUID();
 
     // Create User and Wallet
-    await getTestServer().db.transaction(async (trx) => {
+    await dbNode().transaction(async (trx) => {
       await trx("users").insert({
         id: userId,
         email: "test@yopmail.com",
@@ -26,15 +27,15 @@ describe("Wallet System", () => {
       });
     });
 
-    const res = await request(getTestServer().server)
+    const res = await request(getTestServer().getInstance().server)
       .post("/wallets/deposit")
       .set("Idempotency-Key", randomUUID())
       .send({ user_id: userId, amount: 500 });
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(httpStatus.CREATED);
 
     // Check ledger
-    const ledger = await getTestServer().db("ledger_entries");
+    const ledger = await dbNode()("ledger_entries");
 
     expect(ledger.length).toBe(1);
     expect(Number(ledger[0].amount)).toBe(500);
