@@ -25,12 +25,12 @@ export class WalletService {
     return await Wallet.transaction(async (trx) => {
       const wallet = await this.getWalletByUserId(userId, trx);
 
-      const transactionId = randomUUID();
-
       // Update Balance
       await this.walletRepository.incrementBalance(wallet.id, amount, trx);
 
       // Create Ledger Entry
+      const transactionId = randomUUID();
+
       await this.ledgerRepository.save(
         {
           amount,
@@ -73,11 +73,7 @@ export class WalletService {
       // Lock both wallets in consistent order to prevent deadlocks
       const wallets = await this.walletRepository.lockWalletsByUserIds([fromUserId, toUserId], trx);
 
-      const sender = wallets.find((wallet) => wallet.user_id === fromUserId);
-      const receiver = wallets.find((wallet) => wallet.user_id === toUserId);
-
-      if (!sender) throw new NotFoundError("Sender wallet not found");
-      if (!receiver) throw new NotFoundError("Receiver wallet not found");
+      const { sender, receiver } = this.getWalletsForTransfer(fromUserId, toUserId, wallets);
 
       // Check Balance from ledger
       const senderBalance = await this.ledgerRepository.getBalanceByWalletId(sender.id, trx);
@@ -85,6 +81,10 @@ export class WalletService {
       if (senderBalance < amount) throw new InvalidRequestError("Insufficient funds");
 
       const transactionId = randomUUID();
+
+      // Update Wallets Balances
+      await this.walletRepository.incrementBalance(sender.id, -amount, trx);
+      await this.walletRepository.incrementBalance(receiver.id, amount, trx);
 
       // Update Ledger Entries
       await this.ledgerRepository.saveBulk(
@@ -149,5 +149,15 @@ export class WalletService {
       },
       trx,
     );
+  }
+
+  private getWalletsForTransfer(fromUserId: string, toUserId: string, wallets: Wallet[]) {
+    const sender = wallets.find((wallet) => wallet.user_id === fromUserId);
+    const receiver = wallets.find((wallet) => wallet.user_id === toUserId);
+
+    if (!sender) throw new NotFoundError("Sender wallet not found");
+    if (!receiver) throw new NotFoundError("Receiver wallet not found");
+
+    return { sender, receiver };
   }
 }
