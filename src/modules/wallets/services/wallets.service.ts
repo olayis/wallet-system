@@ -24,7 +24,7 @@ export class WalletService {
     const { userId, amount } = data;
 
     try {
-      await this.validateDepositRules(idempotencyKey);
+      await this.validateIdempotency(idempotencyKey);
 
       return await Wallet.transaction(async (trx) => {
         const wallet = await this.getWalletByUserId(userId, trx);
@@ -118,10 +118,6 @@ export class WalletService {
   private async updateWalletsBalances(senderId: string, receiverId: string, amount: number, trx: IKnexTransaction) {
     await this.walletRepository.incrementBalance(senderId, -amount, trx);
     await this.walletRepository.incrementBalance(receiverId, amount, trx);
-  }
-
-  private async validateDepositRules(idempotencyKey: string) {
-    await this.validateIdempotency(idempotencyKey);
   }
 
   private async validateTransferRules(data: TransferRequest, idempotencyKey: string) {
