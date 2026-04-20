@@ -1,7 +1,9 @@
 import { type Knex } from "knex";
+import { knexSnakeCaseMappers } from "objection";
 import appConfig from "./app.config";
 
 const config: Knex.Config = {
+  ...knexSnakeCaseMappers(),
   client: "pg",
   connection: {
     host: appConfig.database.host,

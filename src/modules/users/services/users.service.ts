@@ -4,8 +4,8 @@ import { WalletRepository } from "../../wallets/repositories/wallets.repository"
 import { User } from "../models/user.model";
 import { randomUUID } from "node:crypto";
 import bcrypt from "bcrypt";
-import DuplicateError from "../../../shared/error/duplicate.error";
 import { CreateUserRequest } from "../schemas/users.schema";
+import { handleDbError } from "../../../shared/utils/db-error.util";
 
 @injectable()
 export class UserService {
@@ -34,12 +34,7 @@ export class UserService {
         return { id: userId, email, walletId };
       });
     } catch (err: any) {
-      const errorCode = err.code || err?.nativeError?.code;
-
-      if (err.name === "UniqueViolationError" || errorCode === "23505") {
-        throw new DuplicateError("Email already exists");
-      }
-
+      handleDbError(err, "Email already exists");
       throw err;
     }
   }

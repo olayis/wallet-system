@@ -10,8 +10,7 @@ export class LedgerRepository extends BaseRepository<LedgerEntry> {
   }
 
   async getBalanceByWalletId(walletId: string, trx?: Transaction): Promise<number> {
-    const result = await this.query(trx).where({ wallet_id: walletId }).sum("amount as balance").first();
-
+    const result = await this.query(trx).where({ walletId }).sum("amount as balance").first();
     return Number(result?.balance || 0);
   }
 }

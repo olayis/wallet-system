@@ -6,18 +6,18 @@ export class LedgerEntry extends Model {
   static readonly tableName = DB_TABLES.LEDGER_ENTRIES;
 
   id: string;
-  wallet_id: string;
+  walletId: string;
   amount: number;
   type: string;
   reference: string;
-  created_at: string;
+  createdAt: string;
 
   static readonly relationMappings = {
     wallet: {
       relation: Model.BelongsToOneRelation,
       modelClass: () => Wallet,
       join: {
-        from: `${DB_TABLES.LEDGER_ENTRIES}.wallet_id`,
+        from: `${DB_TABLES.LEDGER_ENTRIES}.walletId`,
         to: `${DB_TABLES.WALLETS}.id`,
       },
     },

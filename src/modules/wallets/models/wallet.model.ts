@@ -8,41 +8,41 @@ export class Wallet extends Model {
   static readonly tableName = DB_TABLES.WALLETS;
 
   id: string;
-  user_id: string;
+  userId: string;
   balance: number;
-  created_at: string;
+  createdAt: string;
 
   static readonly relationMappings = {
     user: {
       relation: Model.BelongsToOneRelation,
       modelClass: () => User,
       join: {
-        from: `${DB_TABLES.WALLETS}.user_id`,
+        from: `${DB_TABLES.WALLETS}.userId`,
         to: `${DB_TABLES.USERS}.id`,
       },
     },
-    transactions_from: {
+    transactionsFrom: {
       relation: Model.HasManyRelation,
       modelClass: () => Transaction,
       join: {
-        from: `${DB_TABLES.WALLETS}.user_id`,
-        to: `${DB_TABLES.TRANSACTIONS}.from_user_id`,
+        from: `${DB_TABLES.WALLETS}.userId`,
+        to: `${DB_TABLES.TRANSACTIONS}.fromUserId`,
       },
     },
-    transactions_to: {
+    transactionsTo: {
       relation: Model.HasManyRelation,
       modelClass: () => Transaction,
       join: {
-        from: `${DB_TABLES.WALLETS}.user_id`,
-        to: `${DB_TABLES.TRANSACTIONS}.to_user_id`,
+        from: `${DB_TABLES.WALLETS}.userId`,
+        to: `${DB_TABLES.TRANSACTIONS}.toUserId`,
       },
     },
-    ledger_entries: {
+    ledgerEntries: {
       relation: Model.HasManyRelation,
       modelClass: () => LedgerEntry,
       join: {
         from: `${DB_TABLES.WALLETS}.id`,
-        to: `${DB_TABLES.LEDGER_ENTRIES}.wallet_id`,
+        to: `${DB_TABLES.LEDGER_ENTRIES}.walletId`,
       },
     },
   };
