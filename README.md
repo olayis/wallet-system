@@ -81,10 +81,12 @@ npm test
 
 | Method | Endpoint                   | Description                                                 |
 | ------ | -------------------------- | ----------------------------------------------------------- |
+| `POST` | `/users`                   | Create a new user.                                          |
 | `POST` | `/wallets/deposit`         | Deposit funds. Requires `x-idempotency-key`.                |
 | `POST` | `/wallets/transfer`        | Transfer funds between users. Requires `x-idempotency-key`. |
 | `GET`  | `/wallets/:userId/balance` | Retrieve real-time balance for a user.                      |
-| `GET`  | `/health`                  | System health check.                                        |
+| `GET`  | `/livez`                   | System health check.                                        |
+| `GET`  | `/readyz`                  | System health check.                                        |
 
 ### Header Requirements
 
