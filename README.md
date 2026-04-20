@@ -30,7 +30,7 @@ This ensures a fully auditable system and prevents drift between "cached" balanc
 
 ### 2. Idempotency
 
-All mutation endpoints require a valid UUID in the `x-idempotency-key` header. This prevents duplicate processing of the same request at the database engine level.
+All financial mutation endpoints require a valid UUID in the `x-idempotency-key` header. This prevents duplicate processing of the same request at the database engine level.
 
 ## Getting Started
 
