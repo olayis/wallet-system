@@ -15,7 +15,7 @@ it("should transfer between users", async () => {
   const walletA = randomUUID();
   const walletB = randomUUID();
 
-  await dbNode().insert([
+  await dbNode()("users").insert([
     { id: userA, email: "a@yopmail.com", password_hash: TEST_PASSWORD_HASH },
     { id: userB, email: "b@yopmail.com", password_hash: TEST_PASSWORD_HASH },
   ]);
@@ -31,16 +31,16 @@ it("should transfer between users", async () => {
     id: randomUUID(),
     wallet_id: walletA,
     amount: 2000,
-    type: "deposit",
+    type: "credit",
     reference: randomUUID(),
   });
 
   const res = await request(getTestServer().getInstance().server)
     .post("/wallets/transfer")
-    .set("Idempotency-Key", randomUUID())
+    .set("x-idempotency-key", randomUUID())
     .send({
-      from_user_id: userA,
-      to_user_id: userB,
+      fromUserId: userA,
+      toUserId: userB,
       amount: 1000,
     });
 

@@ -29,8 +29,8 @@ describe("Wallet System", () => {
 
     const res = await request(getTestServer().getInstance().server)
       .post("/wallets/deposit")
-      .set("Idempotency-Key", randomUUID())
-      .send({ user_id: userId, amount: 500 });
+      .set("x-idempotency-key", randomUUID())
+      .send({ userId, amount: 500 });
 
     expect(res.status).toBe(httpStatus.CREATED);
 

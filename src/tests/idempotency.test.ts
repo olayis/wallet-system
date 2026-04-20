@@ -24,13 +24,13 @@ it("should not duplicate transaction with same idempotency key", async () => {
 
   const key = randomUUID();
 
-  await request(getTestServer().getInstance().server).post("/wallets/deposit").set("Idempotency-Key", key).send({
-    user_id: userId,
+  await request(getTestServer().getInstance().server).post("/wallets/deposit").set("x-idempotency-key", key).send({
+    userId,
     amount: 5000,
   });
 
-  await request(getTestServer().getInstance().server).post("/wallets/deposit").set("Idempotency-Key", key).send({
-    user_id: userId,
+  await request(getTestServer().getInstance().server).post("/wallets/deposit").set("x-idempotency-key", key).send({
+    userId,
     amount: 5000,
   });
 
