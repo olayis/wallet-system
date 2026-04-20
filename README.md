@@ -90,7 +90,7 @@ npm test
 
 ### Header Requirements
 
-- `x-idempotency-key`: **Required** for POST operations. Must be a valid UUID.
+- `x-idempotency-key`: **Required** for wallet's POST operations. Must be a valid UUID.
 
 ## Directory Structure
 
