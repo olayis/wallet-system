@@ -3,7 +3,7 @@ import z from "zod";
 import httpStatus from "http-status";
 import { ErrorResponse } from "../utils/response.util";
 
-const validate = <T>(schema: z.ZodType<T, any, any>, target: "body" | "query" | "params" = "body") => {
+const validate = <T>(schema: z.ZodType<T, any, any>, target: "body" | "query" | "params" | "headers" = "body") => {
   return async (req: FastifyRequest, res: FastifyReply) => {
     const dataToValidate = req[target];
     const result = schema.safeParse(dataToValidate);

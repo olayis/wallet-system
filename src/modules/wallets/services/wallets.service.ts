@@ -53,7 +53,7 @@ export class WalletService {
       const errorCode = err.code || err?.nativeError?.code;
 
       if (err.name === "UniqueViolationError" || errorCode === "23505") {
-        throw new DuplicateError("Idempotency key already exists. Request already processed.");
+        throw new DuplicateError("Request already processed.");
       }
 
       throw err;
@@ -114,7 +114,7 @@ export class WalletService {
       const errorCode = err.code || err?.nativeError?.code;
 
       if (err.name === "UniqueViolationError" || errorCode === "23505") {
-        throw new DuplicateError("Idempotency key already exists. Request already processed.");
+        throw new DuplicateError("Request already processed.");
       }
 
       throw err;

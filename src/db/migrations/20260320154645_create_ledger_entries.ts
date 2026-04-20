@@ -8,7 +8,7 @@ export async function up(knex: Knex): Promise<void> {
     table.foreign("wallet_id").references("id").inTable("wallets");
 
     table.decimal("amount", 14, 2).notNullable();
-    table.enum("type", ["deposit", "transfer"]).notNullable();
+    table.enum("type", ["credit", "debit"]).notNullable();
 
     table.uuid("reference").notNullable();
 

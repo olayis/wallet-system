@@ -10,7 +10,7 @@ export class WalletController {
   constructor(private readonly walletService: WalletService) {}
 
   deposit = async (req: FastifyRequest<{ Body: DepositRequest }>, res: FastifyReply) => {
-    const key = req.headers["idempotencyKey"] as string;
+    const key = req.headers["x-idempotency-key"] as string;
 
     const result = await this.walletService.depositToWallet(req.body, key);
 
@@ -18,7 +18,7 @@ export class WalletController {
   };
 
   transfer = async (req: FastifyRequest<{ Body: TransferRequest }>, res: FastifyReply) => {
-    const key = req.headers["idempotencyKey"] as string;
+    const key = req.headers["x-idempotency-key"] as string;
 
     const result = await this.walletService.transferBetweenUsers(req.body, key);
 
