@@ -10,6 +10,6 @@ export class UserRepository extends BaseRepository<User> {
   }
 
   async createUser(id: string, email: string, passwordHash: string, trx?: Transaction): Promise<User> {
-    return await this.save({ id, email, password_hash: passwordHash }, trx);
+    return await this.save({ id, email, passwordHash }, trx);
   }
 }

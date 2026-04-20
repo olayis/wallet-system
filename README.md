@@ -1,4 +1,4 @@
-# Mini Payment & Wallet Backend System
+# Wallet Backend System
 
 A fintech-inspired backend system that simulates core wallet and payment operations using a **ledger-based accounting model** and **layered architecture**.
 
@@ -30,7 +30,7 @@ This ensures a fully auditable system and prevents drift between "cached" balanc
 
 ### 2. Idempotency
 
-All mutation endpoints require a valid UUID in the `x-idempotency-key` header. This prevents duplicate processing of the same request at the database engine level.
+All financial mutation endpoints require a valid UUID in the `x-idempotency-key` header. This prevents duplicate processing of the same request at the database engine level.
 
 ## Getting Started
 
@@ -81,14 +81,16 @@ npm test
 
 | Method | Endpoint                   | Description                                                 |
 | ------ | -------------------------- | ----------------------------------------------------------- |
+| `POST` | `/users`                   | Create a new user.                                          |
 | `POST` | `/wallets/deposit`         | Deposit funds. Requires `x-idempotency-key`.                |
 | `POST` | `/wallets/transfer`        | Transfer funds between users. Requires `x-idempotency-key`. |
 | `GET`  | `/wallets/:userId/balance` | Retrieve real-time balance for a user.                      |
-| `GET`  | `/health`                  | System health check.                                        |
+| `GET`  | `/livez`                   | System health check.                                        |
+| `GET`  | `/readyz`                  | System health check.                                        |
 
 ### Header Requirements
 
-- `x-idempotency-key`: **Required** for POST operations. Must be a valid UUID.
+- `x-idempotency-key`: **Required** for wallet's POST operations. Must be a valid UUID.
 
 ## Directory Structure
 

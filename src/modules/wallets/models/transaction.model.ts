@@ -7,11 +7,11 @@ export class Transaction extends Model {
   id: string;
   type: string;
   amount: number;
-  from_user_id?: string;
-  to_user_id?: string;
+  fromUserId?: string;
+  toUserId?: string;
   status: string;
-  idempotency_key?: string;
-  created_at: string;
+  idempotencyKey?: string;
+  createdAt: string;
 }
 
 export type ITransaction = ModelObject<Transaction>;

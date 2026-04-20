@@ -4,11 +4,12 @@ import { LedgerRepository } from "../../ledgers/repositories/ledgers.repository"
 import { TransactionRepository } from "../repositories/transactions.repository";
 import { Wallet } from "../models/wallet.model";
 import { randomUUID } from "node:crypto";
-import { Transaction } from "objection";
+import { Transaction as IKnexTransaction } from "objection";
 import NotFoundError from "../../../shared/error/not-found.error";
 import InvalidRequestError from "../../../shared/error/invalid-request.error";
 import DuplicateError from "../../../shared/error/duplicate.error";
 import { DepositRequest, TransferRequest } from "../schemas/wallets.schema";
+import { ITransaction } from "../models/transaction.model";
 
 @injectable()
 export class WalletService {
@@ -31,17 +32,10 @@ export class WalletService {
         // Create Ledger Entry and Record Transaction
         const transactionId = randomUUID();
 
-        await this.createLedgerEntries([{ wallet_id: wallet.id, amount, type: "credit" }], transactionId, trx);
+        await this.createLedgerEntries([{ walletId: wallet.id, amount, type: "credit" }], transactionId, trx);
 
         await this.recordTransaction(
-          {
-            id: transactionId,
-            amount,
-            to_user_id: userId,
-            type: "deposit",
-            status: "completed",
-            idempotency_key: idempotencyKey,
-          },
+          { id: transactionId, amount, toUserId: userId, type: "deposit", status: "completed", idempotencyKey },
           trx,
         );
 
@@ -50,12 +44,7 @@ export class WalletService {
         return { walletId: wallet.id, balance: newBalance };
       });
     } catch (err: any) {
-      const errorCode = err.code || err?.nativeError?.code;
-
-      if (err.name === "UniqueViolationError" || errorCode === "23505") {
-        throw new DuplicateError("Request already processed.");
-      }
-
+      this.handleRepositoryError(err);
       throw err;
     }
   }
@@ -84,23 +73,15 @@ export class WalletService {
 
         await this.createLedgerEntries(
           [
-            { wallet_id: sender.id, amount: -amount, type: "debit" },
-            { wallet_id: receiver.id, amount, type: "credit" },
+            { walletId: sender.id, amount: -amount, type: "debit" },
+            { walletId: receiver.id, amount, type: "credit" },
           ],
           transactionId,
           trx,
         );
 
         await this.recordTransaction(
-          {
-            id: transactionId,
-            amount,
-            type: "transfer",
-            from_user_id: fromUserId,
-            to_user_id: toUserId,
-            status: "completed",
-            idempotency_key: idempotencyKey,
-          },
+          { id: transactionId, amount, type: "transfer", fromUserId, toUserId, status: "completed", idempotencyKey },
           trx,
         );
 
@@ -111,12 +92,7 @@ export class WalletService {
         };
       });
     } catch (err: any) {
-      const errorCode = err.code || err?.nativeError?.code;
-
-      if (err.name === "UniqueViolationError" || errorCode === "23505") {
-        throw new DuplicateError("Request already processed.");
-      }
-
+      this.handleRepositoryError(err);
       throw err;
     }
   }
@@ -128,7 +104,7 @@ export class WalletService {
     return { walletId: wallet.id, balance };
   }
 
-  private async getWalletByUserId(userId: string, trx?: Transaction) {
+  private async getWalletByUserId(userId: string, trx?: IKnexTransaction) {
     const findWallet = await this.walletRepository.findByUserId(userId, trx);
 
     if (!findWallet) throw new NotFoundError("Wallet not found");
@@ -137,8 +113,8 @@ export class WalletService {
   }
 
   private getWalletsForTransfer(fromUserId: string, toUserId: string, wallets: Wallet[]) {
-    const sender = wallets.find((wallet) => wallet.user_id === fromUserId);
-    const receiver = wallets.find((wallet) => wallet.user_id === toUserId);
+    const sender = wallets.find((wallet) => wallet.userId === fromUserId);
+    const receiver = wallets.find((wallet) => wallet.userId === toUserId);
 
     if (!sender) throw new NotFoundError("Sender wallet not found");
     if (!receiver) throw new NotFoundError("Receiver wallet not found");
@@ -146,15 +122,15 @@ export class WalletService {
     return { sender, receiver };
   }
 
-  private async updateWalletsBalances(senderId: string, receiverId: string, amount: number, trx: Transaction) {
+  private async updateWalletsBalances(senderId: string, receiverId: string, amount: number, trx: IKnexTransaction) {
     await this.walletRepository.incrementBalance(senderId, -amount, trx);
     await this.walletRepository.incrementBalance(receiverId, amount, trx);
   }
 
   private async createLedgerEntries(
-    entries: { wallet_id: string; amount: number; type: string }[],
+    entries: { walletId: string; amount: number; type: string }[],
     transactionId: string,
-    trx: Transaction,
+    trx: IKnexTransaction,
   ) {
     const formattedEntries = entries.map((entry) => ({
       ...entry,
@@ -165,7 +141,15 @@ export class WalletService {
     await this.ledgerRepository.saveBulk(formattedEntries, trx);
   }
 
-  private async recordTransaction(data: any, trx: Transaction) {
+  private async recordTransaction(data: Partial<ITransaction>, trx: IKnexTransaction) {
     await this.transactionRepository.save(data, trx);
+  }
+
+  private handleRepositoryError(err: any): void {
+    const errorCode = err.code || err?.nativeError?.code;
+
+    if (err.name === "UniqueViolationError" || errorCode === "23505") {
+      throw new DuplicateError("Request already processed.");
+    }
   }
 }

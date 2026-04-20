@@ -13,12 +13,12 @@ it("should not duplicate transaction with same idempotency key", async () => {
   await dbNode()("users").insert({
     id: userId,
     email: "test@example.com",
-    password_hash: TEST_PASSWORD_HASH,
+    passwordHash: TEST_PASSWORD_HASH,
   });
 
   await dbNode()("wallets").insert({
     id: randomUUID(),
-    user_id: userId,
+    userId: userId,
     balance: 0,
   });
 

@@ -7,8 +7,8 @@ export class User extends Model {
 
   id: string;
   email: string;
-  password_hash: string;
-  created_at: string;
+  passwordHash: string;
+  createdAt: string;
 
   static readonly relationMappings = {
     wallet: {

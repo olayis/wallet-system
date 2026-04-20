@@ -16,20 +16,20 @@ it("should transfer between users", async () => {
   const walletB = randomUUID();
 
   await dbNode()("users").insert([
-    { id: userA, email: "a@yopmail.com", password_hash: TEST_PASSWORD_HASH },
-    { id: userB, email: "b@yopmail.com", password_hash: TEST_PASSWORD_HASH },
+    { id: userA, email: "a@yopmail.com", passwordHash: TEST_PASSWORD_HASH },
+    { id: userB, email: "b@yopmail.com", passwordHash: TEST_PASSWORD_HASH },
   ]);
 
   // Create wallets for users
   await dbNode()("wallets").insert([
-    { id: walletA, user_id: userA, balance: 0 },
-    { id: walletB, user_id: userB, balance: 0 },
+    { id: walletA, userId: userA, balance: 0 },
+    { id: walletB, userId: userB, balance: 0 },
   ]);
 
   // Seed balance using ledger
   await dbNode()("ledger_entries").insert({
     id: randomUUID(),
-    wallet_id: walletA,
+    walletId: walletA,
     amount: 2000,
     type: "credit",
     reference: randomUUID(),

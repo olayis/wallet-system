@@ -17,12 +17,12 @@ describe("Wallet System", () => {
       await trx("users").insert({
         id: userId,
         email: "test@yopmail.com",
-        password_hash: TEST_PASSWORD_HASH,
+        passwordHash: TEST_PASSWORD_HASH,
       });
 
       await trx("wallets").insert({
         id: randomUUID(),
-        user_id: userId,
+        userId: userId,
         balance: 0,
       });
     });

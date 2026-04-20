@@ -10,11 +10,11 @@ export class WalletRepository extends BaseRepository<Wallet> {
   }
 
   async findByUserId(userId: string, trx?: Transaction): Promise<Wallet | undefined> {
-    return await this.findOne({ user_id: userId }, trx);
+    return await this.findOne({ userId }, trx);
   }
 
   async lockWalletsByUserIds(userIds: string[], trx: Transaction): Promise<Wallet[]> {
-    return await this.query(trx).whereIn("user_id", userIds).orderBy("id").forUpdate();
+    return await this.query(trx).whereIn("userId", userIds).orderBy("id").forUpdate();
   }
 
   async updateBalance(walletId: string, newBalance: number, trx?: Transaction): Promise<Wallet> {
@@ -29,6 +29,6 @@ export class WalletRepository extends BaseRepository<Wallet> {
   }
 
   async createWallet(id: string, userId: string, trx?: Transaction): Promise<Wallet> {
-    return await this.save({ id, user_id: userId, balance: 0 }, trx);
+    return await this.save({ id, userId, balance: 0 }, trx);
   }
 }
