@@ -1,4 +1,4 @@
-# Mini Payment & Wallet Backend System
+# Wallet Backend System
 
 A fintech-inspired backend system that simulates core wallet and payment operations using a **ledger-based accounting model** and **layered architecture**.
 
