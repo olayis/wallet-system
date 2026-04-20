@@ -5,23 +5,33 @@
   "main": "index.js",
   "scripts": {
     "dev": "ts-node-dev --respawn src/server.ts",
-    "test": "vitest",
+    "test": "NODE_ENV=test vitest",
     "knex": "knex --knexfile knexfile.ts"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
+  "_moduleAliases": {
+    "@config": "src/config",
+    "@shared": "src/shared"
+  },
   "dependencies": {
+    "module-alias": "^2.2.3",
     "bcrypt": "^6.0.0",
     "dotenv": "^17.3.1",
     "fastify": "^5.8.2",
     "fastify-plugin": "^5.1.0",
+    "http-status": "^2.1.0",
+    "objection": "^3.1.5",
     "pg": "^8.20.0",
+    "reflect-metadata": "^0.2.2",
+    "tsyringe": "^4.10.0",
     "vitest": "^4.1.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/bcrypt": "^6.0.0",
+    "@types/module-alias": "^2.0.4",
     "@types/node": "^25.5.0",
     "@types/supertest": "^7.2.0",
     "eslint": "^10.0.3",

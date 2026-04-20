@@ -1,189 +1,104 @@
 # Mini Payment & Wallet Backend System
 
-A fintech-inspired backend system that simulates core wallet and payment operations using a **ledger-based accounting model**.
-
+A fintech-inspired backend system that simulates core wallet and payment operations using a **ledger-based accounting model** and **layered architecture**.
 
 ## Features
 
-* User and wallet management
-* Deposit and transfer operations
-* Double-entry ledger system (financial source of truth)
-* Idempotent APIs (safe retries)
-* Concurrency-safe transfers (row-level locking)
-* Transaction history (business layer)
-* Balance computation from ledger
+- **Layered Architecture**: Decoupled Controllers, Services, and Repositories.
+- **Double-Entry Ledger**: Financial source of truth using `credit` and `debit` entries.
+- **Idempotent APIs**: Native database-level uniqueness for safe retries via `x-idempotency-key`.
+- **Concurrency-Safe**: Row-level locking to prevent race conditions during transfers.
+- **Isolated Testing**: Dedicated test database setup with automated migrations.
 
+## Tech Stack
+
+- **Runtime**: Node.js (TypeScript)
+- **Framework**: Fastify
+- **ORM/Query Builder**: Objection.js / Knex.js
+- **Database**: PostgreSQL
+- **DI/IoC**: tsyringe
+- **Validation**: Zod
+- **Testing**: Vitest + Supertest
 
 ## Core Design Principles
 
 ### 1. Ledger-Based Accounting
 
-All balances are derived from immutable ledger entries:
+Balances are derived from immutable ledger entries.
+`Balance = SUM(ledger_entries.amount)`
+This ensures a fully auditable system and prevents drift between "cached" balances and transaction history.
 
-```
-Balance = SUM(ledger_entries.amount)
-```
+### 2. Idempotency
 
-* No direct reliance on mutable balances
-* Fully auditable system
-* Prevents data inconsistencies
-
-### 2. Separation of Concerns
-
-| Layer        | Responsibility                             |
-| ------------ | ------------------------------------------ |
-| Transactions | Business events (e.g. transfers, deposits) |
-| Ledger       | Financial truth (money movement)           |
-
-### 3. Idempotency
-
-All financial endpoints support idempotency using:
-
-```
-Idempotency-Key (header)
-```
-
-This ensures:
-
-* Safe retries
-* No duplicate transactions
-* Consistent responses
-
-### 4. Concurrency Control
-
-Transfers use:
-
-* Database transactions
-* Row-level locking (`FOR UPDATE`)
-* Consistent lock ordering
-
-This prevents:
-
-* Race conditions
-* Double spending
-* Deadlocks
-
-## System Architecture
-
-```
-Client
-  ↓
-Fastify API
-  ↓
-Service Layer
-  ↓
-PostgreSQL
-  ├── users
-  ├── wallets (balance cache)
-  ├── transactions (business events)
-  └── ledger_entries (source of truth)
-```
-
-## Transfer Flow
-
-```
-POST /wallets/transfer
-
-1. Validate request
-2. Check idempotency
-3. Start DB transaction
-4. Lock wallets (ordered)
-5. Compute balance from ledger
-6. Validate sufficient funds
-7. Create transaction (business record)
-8. Create ledger entries (debit + credit)
-9. Commit transaction
-```
-
-## Data Model
-
-### Transactions (Business Layer)
-
-* One record per operation
-* Represents intent
-
-```json
-{
-  "id": "uuid",
-  "type": "transfer",
-  "amount": 5000,
-  "from_user_id": "uuid",
-  "to_user_id": "uuid"
-}
-```
-
-### Ledger Entries (Financial Layer)
-
-* Multiple records per transaction
-* Represents money movement
-
-```json
-{
-  "wallet_id": "uuid",
-  "amount": -5000,
-  "type": "transfer",
-  "reference": "transaction_id"
-}
-```
-
-## Tech Stack
-
-* Node.js
-* Fastify
-* TypeScript
-* PostgreSQL
-* Knex.js
+All mutation endpoints require a valid UUID in the `x-idempotency-key` header. This prevents duplicate processing of the same request at the database engine level.
 
 ## Getting Started
 
-### 1. Install dependencies
+### 1. Setup Environment
 
-```
-npm install
-```
+Create a `.env` file in the root based on the following template:
 
-### 2. Setup environment variables
-
-```
+```bash
+PORT=3000
 DB_HOST=localhost
 DB_PORT=5432
-DB_NAME=wallet_system
-DB_USER=postgres
-DB_PASSWORD=yourpassword
+DB_NAME=wallet_db
+DB_NAME_TEST=wallet_db_test
+DB_USER=your_user
+DB_PASSWORD=your_password
 ```
 
-### 3. Run migrations
+### 2. Create Databases
 
-```
-npx knex migrate:latest
+```bash
+# Development Database
+createdb wallet_db
+
+# Test Database
+createdb wallet_db_test
 ```
 
-### 4. Start the server
+### 3. Installation & Database Init
 
+```bash
+npm install
+npm run knex -- migrate:latest
 ```
+
+### 4. Running the App
+
+```bash
+# Development mode
 npm run dev
+
+# Run test suite
+npm test
 ```
 
-## Example Endpoints
+## API Documentation
 
-### Health Check
+### Endpoints
 
-```
-GET /health
-```
+| Method | Endpoint                   | Description                                                 |
+| ------ | -------------------------- | ----------------------------------------------------------- |
+| `POST` | `/wallets/deposit`         | Deposit funds. Requires `x-idempotency-key`.                |
+| `POST` | `/wallets/transfer`        | Transfer funds between users. Requires `x-idempotency-key`. |
+| `GET`  | `/wallets/:userId/balance` | Retrieve real-time balance for a user.                      |
+| `GET`  | `/health`                  | System health check.                                        |
 
-### Deposit
+### Header Requirements
 
-```
-POST /wallets/deposit
-Headers:
-  Idempotency-Key: <unique-key>
-```
+- `x-idempotency-key`: **Required** for POST operations. Must be a valid UUID.
 
-### Transfer
+## Directory Structure
 
-```
-POST /wallets/transfer
-Headers:
-  Idempotency-Key: <unique-key>
+```text
+src/
+├── config/             # App and Knex configurations
+├── db/                 # Migrations and Seeds
+├── modules/
+│   ├── users/          # User domain
+│   └── wallets/        # Core wallet logic (Services, Repositories, Controllers)
+├── shared/             # Middlewares, Errors, and Utilities
+└── tests/              # Vitest suites and global setup
 ```

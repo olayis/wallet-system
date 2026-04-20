@@ -1,24 +1,28 @@
+import "reflect-metadata";
 import { beforeAll, afterAll, beforeEach } from "vitest";
-import app from "../app";
+import App from "../app";
+import { getKnexInstance } from "../database";
 
-let serverInstance: Awaited<ReturnType<typeof app.ready>>;
+let serverInstance: App;
 
 beforeAll(async () => {
-  await app.ready();
-  serverInstance = app;
+  serverInstance = new App();
+  await serverInstance.init();
 });
 
 export const server = () => serverInstance;
 
+export const dbNode = () => getKnexInstance();
+
 beforeEach(async () => {
   // Clean tables before each test
-  await app.db("ledger_entries").del();
-  await app.db("transactions").del();
-  await app.db("wallets").del();
-  await app.db("users").del();
-  await app.db("idempotency_keys").del();
+  const db = getKnexInstance();
+  await db("ledger_entries").del();
+  await db("transactions").del();
+  await db("wallets").del();
+  await db("users").del();
 });
 
 afterAll(async () => {
-  await app.close();
+  await serverInstance.close();
 });

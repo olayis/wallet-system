@@ -1,20 +1,41 @@
 /// <reference path="./types/fastify.d.ts" />
-import Fastify from "fastify";
-import dbPlugin from "./plugins/db";
-import { usersRoutes } from "./modules/users/users.route";
-import { walletsRoutes } from "./modules/wallets/wallets.routes";
+import "reflect-metadata";
+import "dotenv/config";
+import "module-alias/register";
 
-const app = Fastify({
-  logger: true,
-});
+import fastify, { FastifyInstance } from "fastify";
+import bootstrapApp from "./bootstrap";
+import routes from "./shared/routes/index.routes";
 
-app.register(dbPlugin);
-app.register(usersRoutes);
-app.register(walletsRoutes);
+class App {
+  private fastify!: FastifyInstance;
 
-app.get("/health", async () => {
-  await app.db.raw("SELECT 1");
-  return { status: "ok" };
-});
+  public async init() {
+    this.fastify = fastify({ logger: true });
 
-export default app;
+    bootstrapApp(this.fastify);
+    this.registerModules();
+    await this.fastify.ready();
+    return this;
+  }
+
+  private registerModules() {
+    this.fastify.register(routes.user);
+    this.fastify.register(routes.wallet);
+    this.fastify.register(routes.health);
+  }
+
+  public getInstance() {
+    return this.fastify;
+  }
+
+  public async close() {
+    await this.fastify.close();
+  }
+
+  public listen(port: number, address = "0.0.0.0") {
+    return this.fastify.listen({ port, host: address });
+  }
+}
+
+export default App;

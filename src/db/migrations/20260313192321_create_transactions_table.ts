@@ -21,6 +21,7 @@ export async function up(knex: Knex): Promise<void> {
       .onDelete("SET NULL");
 
     table.string("status").defaultTo("completed");
+    table.string("idempotency_key").unique().nullable();
     table.timestamp("created_at").defaultTo(knex.fn.now());
   });
 }
