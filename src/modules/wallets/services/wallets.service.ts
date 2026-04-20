@@ -10,6 +10,7 @@ import InvalidRequestError from "../../../shared/error/invalid-request.error";
 import DuplicateError from "../../../shared/error/duplicate.error";
 import { DepositRequest, TransferRequest } from "../schemas/wallets.schema";
 import { ITransaction } from "../models/transaction.model";
+import { handleDbError } from "@shared/utils/db-error.util";
 
 @injectable()
 export class WalletService {
@@ -19,23 +20,22 @@ export class WalletService {
     private readonly transactionRepository: TransactionRepository,
   ) {}
 
-  async depositToWallet(data: DepositRequest, idempotencyKey?: string) {
+  async depositToWallet(data: DepositRequest, idempotencyKey: string) {
     const { userId, amount } = data;
 
     try {
+      await this.validateDepositRules(idempotencyKey);
+
       return await Wallet.transaction(async (trx) => {
         const wallet = await this.getWalletByUserId(userId, trx);
 
-        // Update Balance
         await this.walletRepository.incrementBalance(wallet.id, amount, trx);
 
-        // Create Ledger Entry and Record Transaction
         const transactionId = randomUUID();
 
-        await this.createLedgerEntries([{ walletId: wallet.id, amount, type: "credit" }], transactionId, trx);
-
-        await this.recordTransaction(
+        await this.recordFinancialEntries(
           { id: transactionId, amount, toUserId: userId, type: "deposit", status: "completed", idempotencyKey },
+          [{ walletId: wallet.id, amount, type: "credit" }],
           trx,
         );
 
@@ -44,34 +44,30 @@ export class WalletService {
         return { walletId: wallet.id, balance: newBalance };
       });
     } catch (err: any) {
-      this.handleRepositoryError(err);
+      handleDbError(err);
       throw err;
     }
   }
 
-  async transferBetweenUsers(data: TransferRequest, idempotencyKey?: string) {
+  async transferBetweenUsers(data: TransferRequest, idempotencyKey: string) {
     const { fromUserId, toUserId, amount } = data;
 
-    if (fromUserId === toUserId) throw new InvalidRequestError("Cannot transfer to same wallet");
-
     try {
+      await this.validateTransferRules(data, idempotencyKey);
+
       return await Wallet.transaction(async (trx) => {
-        // Lock both wallets in consistent order to prevent deadlocks
         const wallets = await this.walletRepository.lockWalletsByUserIds([fromUserId, toUserId], trx);
 
         const { sender, receiver } = this.getWalletsForTransfer(fromUserId, toUserId, wallets);
 
-        // Check Balance from ledger
-        const senderBalance = await this.ledgerRepository.getBalanceByWalletId(sender.id, trx);
-
-        if (senderBalance < amount) throw new InvalidRequestError("Insufficient funds");
+        await this.checkAvailableBalance(sender.id, amount, trx);
 
         await this.updateWalletsBalances(sender.id, receiver.id, amount, trx);
 
-        // Create Ledger Entries and Record Transaction
         const transactionId = randomUUID();
 
-        await this.createLedgerEntries(
+        await this.recordFinancialEntries(
+          { id: transactionId, amount, type: "transfer", fromUserId, toUserId, status: "completed", idempotencyKey },
           [
             { walletId: sender.id, amount: -amount, type: "debit" },
             { walletId: receiver.id, amount, type: "credit" },
@@ -80,19 +76,10 @@ export class WalletService {
           trx,
         );
 
-        await this.recordTransaction(
-          { id: transactionId, amount, type: "transfer", fromUserId, toUserId, status: "completed", idempotencyKey },
-          trx,
-        );
-
-        return {
-          fromWalletId: sender.id,
-          toWalletId: receiver.id,
-          amount,
-        };
+        return { fromWalletId: sender.id, toWalletId: receiver.id, amount };
       });
     } catch (err: any) {
-      this.handleRepositoryError(err);
+      handleDbError(err);
       throw err;
     }
   }
@@ -122,34 +109,50 @@ export class WalletService {
     return { sender, receiver };
   }
 
+  private async checkAvailableBalance(senderId: string, transferAmount: number, trx: IKnexTransaction) {
+    const balance = await this.ledgerRepository.getBalanceByWalletId(senderId, trx);
+
+    if (balance < transferAmount) throw new InvalidRequestError("Insufficient funds");
+  }
+
   private async updateWalletsBalances(senderId: string, receiverId: string, amount: number, trx: IKnexTransaction) {
     await this.walletRepository.incrementBalance(senderId, -amount, trx);
     await this.walletRepository.incrementBalance(receiverId, amount, trx);
   }
 
-  private async createLedgerEntries(
-    entries: { walletId: string; amount: number; type: string }[],
-    transactionId: string,
-    trx: IKnexTransaction,
+  private async validateDepositRules(idempotencyKey: string) {
+    await this.validateIdempotency(idempotencyKey);
+  }
+
+  private async validateTransferRules(data: TransferRequest, idempotencyKey: string) {
+    if (data.fromUserId === data.toUserId) {
+      throw new InvalidRequestError("Cannot transfer to same wallet");
+    }
+    await this.validateIdempotency(idempotencyKey);
+  }
+
+  private async validateIdempotency(key: string) {
+    const existing = await this.transactionRepository.findByIdempotencyKey(key);
+    if (existing) throw new DuplicateError("Request already processed.");
+  }
+
+  private async recordFinancialEntries(
+    transactionData: Partial<ITransaction>,
+    ledgerEntries: { walletId: string; amount: number; type: string }[],
+    transactionIdOrTrx: string | IKnexTransaction,
+    maybeTrx?: IKnexTransaction,
   ) {
-    const formattedEntries = entries.map((entry) => ({
+    // Handle overloaded parameters from different flows
+    const transactionId = typeof transactionIdOrTrx === "string" ? transactionIdOrTrx : (transactionData.id as string);
+    const trx = typeof transactionIdOrTrx === "string" ? maybeTrx : transactionIdOrTrx;
+
+    const formattedEntries = ledgerEntries.map((entry) => ({
       ...entry,
       id: randomUUID(),
       reference: transactionId,
     }));
 
     await this.ledgerRepository.saveBulk(formattedEntries, trx);
-  }
-
-  private async recordTransaction(data: Partial<ITransaction>, trx: IKnexTransaction) {
-    await this.transactionRepository.save(data, trx);
-  }
-
-  private handleRepositoryError(err: any): void {
-    const errorCode = err.code || err?.nativeError?.code;
-
-    if (err.name === "UniqueViolationError" || errorCode === "23505") {
-      throw new DuplicateError("Request already processed.");
-    }
+    await this.transactionRepository.save(transactionData, trx);
   }
 }

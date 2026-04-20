@@ -7,4 +7,8 @@ export class TransactionRepository extends BaseRepository<Transaction> {
   constructor() {
     super(Transaction);
   }
+
+  async findByIdempotencyKey(key: string): Promise<Transaction | undefined> {
+    return await this.findOne({ idempotencyKey: key });
+  }
 }
