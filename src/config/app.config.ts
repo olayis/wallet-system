@@ -2,7 +2,7 @@ import { getEnv } from "./env.config";
 
 const appConfig = {
   app: {
-    name: process.env.APP_NAME,
+    name: process.env.APP_NAME || "wallet_system",
     env: getEnv(),
   },
   server: {
