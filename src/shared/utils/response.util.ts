@@ -1,18 +1,31 @@
-import { ObjectLiteral } from "../../types/object-literal.type";
+export interface SuccessEnvelope<T = unknown> {
+  success: true;
+  message: string;
+  data?: T;
+  meta?: Record<string, unknown>;
+}
 
-export const SuccessResponse = (message: string, data?: ObjectLiteral, meta?: ObjectLiteral) => {
-  return {
-    status: true,
-    message,
-    data,
-    meta,
-  };
-};
+export interface ErrorEnvelope {
+  success: false;
+  message: string;
+  errorCode?: string;
+  errors?: Array<{ field: string; message: string }>;
+}
 
-export const ErrorResponse = (message: string, errors?: any[]) => {
-  return {
-    status: false,
-    message,
-    errors,
-  };
-};
+export const SuccessResponse = <T>(message: string, data?: T, meta?: Record<string, unknown>): SuccessEnvelope<T> => ({
+  success: true,
+  message,
+  data,
+  meta,
+});
+
+export const ErrorResponse = (
+  message: string,
+  errorCode?: string,
+  errors?: Array<{ field: string; message: string }>,
+): ErrorEnvelope => ({
+  success: false,
+  message,
+  errorCode,
+  errors,
+});
