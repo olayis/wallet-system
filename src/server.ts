@@ -3,22 +3,40 @@ import appConfig from "./config/app.config";
 
 const app = new App();
 
-process
-  .on("uncaughtException", (err) => {
-    console.error("Uncaught Exception:", err);
-    app.close();
+let shuttingDown = false;
+
+async function shutdown(signal: string, exitCode = 0) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  const log = app.getInstance()?.log;
+  log?.info({ signal }, "shutting down");
+  try {
+    await app.close();
+    process.exit(exitCode);
+  } catch (err) {
+    log?.error({ err }, "error during shutdown");
     process.exit(1);
-  })
-  .on("SIGINT", () => {
-    app.close();
-    process.exit(0);
-  });
+  }
+}
+
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));
+process.on("uncaughtException", (err) => {
+  console.error("uncaughtException", err);
+  shutdown("uncaughtException", 1);
+});
+process.on("unhandledRejection", (reason) => {
+  console.error("unhandledRejection", reason);
+  shutdown("unhandledRejection", 1);
+});
 
 app
   .init()
-  .then((initializedApp) => initializedApp.listen(appConfig.server.port))
-  .then((address) => console.info(`${appConfig.app.name} started on ${address}`))
+  .then((initialized) => initialized.listen(appConfig.server.port, appConfig.server.host))
+  .then((address) => {
+    app.getInstance()?.log.info(`${appConfig.app.name} listening on ${address}`);
+  })
   .catch((err) => {
-    console.error(err);
+    console.error("failed to start", err);
     process.exit(1);
   });

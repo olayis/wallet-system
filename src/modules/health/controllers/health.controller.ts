@@ -1,21 +1,22 @@
 import { injectable } from "tsyringe";
 import { FastifyReply, FastifyRequest } from "fastify";
-import HealthService from "../services/health.service";
-import { SuccessResponse } from "../../../shared/utils/response.util";
+import { HealthService } from "../services/health.service";
+import { SuccessResponse, ErrorResponse } from "../../../shared/utils/response.util";
 
 @injectable()
-class HealthController {
+export class HealthController {
   constructor(private readonly healthService: HealthService) {}
 
-  readinessCheck = async (req: FastifyRequest, res: FastifyReply) => {
-    const result = this.healthService.checkHealth();
-
-    res.send(SuccessResponse("Service is ready", result));
+  liveness = async (_req: FastifyRequest, reply: FastifyReply) => {
+    const result = await this.healthService.checkLiveness();
+    return reply.send(SuccessResponse("Service is alive", result));
   };
 
-  livelinessCheck = async (req: FastifyRequest, res: FastifyReply) => {
-    res.send(SuccessResponse("Service is alive"));
+  readiness = async (_req: FastifyRequest, reply: FastifyReply) => {
+    const result = await this.healthService.checkReadiness();
+    if (result.status !== "ok") {
+      return reply.status(503).send(ErrorResponse("Service degraded"));
+    }
+    return reply.send(SuccessResponse("Service is ready", result));
   };
 }
-
-export default HealthController;
