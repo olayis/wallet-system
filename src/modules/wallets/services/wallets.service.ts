@@ -1,16 +1,41 @@
+import { randomUUID } from "node:crypto";
 import { injectable } from "tsyringe";
+import { Transaction as KnexTransaction } from "objection";
 import { WalletRepository } from "../repositories/wallets.repository";
 import { LedgerRepository } from "../../ledgers/repositories/ledgers.repository";
 import { TransactionRepository } from "../repositories/transactions.repository";
+import { IdempotencyService } from "../../idempotency/idempotency.service";
 import { Wallet } from "../models/wallet.model";
-import { randomUUID } from "node:crypto";
-import { Transaction as IKnexTransaction } from "objection";
+import { Transaction as TransactionModel, ITransaction } from "../models/transaction.model";
 import NotFoundError from "../../../shared/error/not-found.error";
 import InvalidRequestError from "../../../shared/error/invalid-request.error";
-import DuplicateError from "../../../shared/error/duplicate.error";
-import { DepositRequest, TransferRequest } from "../schemas/wallets.schema";
-import { ITransaction } from "../models/transaction.model";
-import { handleDbError } from "@shared/utils/db-error.util";
+import { handleDbError } from "../../../shared/utils/db-error.util";
+import { Money, gte, neg, normalize } from "../../../shared/utils/money";
+import { DepositInput, WithdrawInput, TransferInput } from "../schemas/wallets.schema";
+
+export interface DepositResult {
+  walletId: string;
+  balance: Money;
+  transactionId: string;
+}
+
+export interface WithdrawResult {
+  walletId: string;
+  balance: Money;
+  transactionId: string;
+}
+
+export interface TransferResult {
+  fromWalletId: string;
+  toWalletId: string;
+  amount: Money;
+  transactionId: string;
+}
+
+export interface BalanceResult {
+  walletId: string;
+  balance: Money;
+}
 
 @injectable()
 export class WalletService {
@@ -18,137 +43,169 @@ export class WalletService {
     private readonly walletRepository: WalletRepository,
     private readonly ledgerRepository: LedgerRepository,
     private readonly transactionRepository: TransactionRepository,
+    private readonly idempotency: IdempotencyService,
   ) {}
 
-  async depositToWallet(data: DepositRequest, idempotencyKey: string) {
-    const { userId, amount } = data;
+  async deposit(userId: string, input: DepositInput, idempotencyKey: string) {
+    return this.idempotency.run<DepositResult>(
+      { key: idempotencyKey, userId, endpoint: "POST /wallets/deposit", requestBody: input },
+      async () => {
+        try {
+          const result = await TransactionModel.transaction(async (trx) => {
+            const wallet = await this.lockWallet(userId, trx);
+            const transactionId = randomUUID();
+            const amount = normalize(input.amount);
 
-    try {
-      await this.validateIdempotency(idempotencyKey);
+            await this.ledgerRepository.saveBulk(
+              [{ id: randomUUID(), walletId: wallet.id, amount, type: "credit", reference: transactionId, transactionId }],
+              trx,
+            );
 
-      return await Wallet.transaction(async (trx) => {
-        const wallet = await this.getWalletByUserId(userId, trx);
+            await this.transactionRepository.save(
+              {
+                id: transactionId,
+                type: "deposit",
+                amount,
+                fromUserId: null,
+                toUserId: userId,
+                status: "completed",
+                idempotencyKey,
+              } as Partial<ITransaction>,
+              trx,
+            );
 
-        await this.walletRepository.incrementBalance(wallet.id, amount, trx);
-
-        const transactionId = randomUUID();
-
-        await this.recordFinancialEntries(
-          { id: transactionId, amount, toUserId: userId, type: "deposit", status: "completed", idempotencyKey },
-          [{ walletId: wallet.id, amount, type: "credit" }],
-          trx,
-        );
-
-        const newBalance = await this.ledgerRepository.getBalanceByWalletId(wallet.id, trx);
-
-        return { walletId: wallet.id, balance: newBalance };
-      });
-    } catch (err: any) {
-      handleDbError(err);
-      throw err;
-    }
+            const balance = await this.ledgerRepository.getBalanceByWalletId(wallet.id, trx);
+            return { walletId: wallet.id, balance, transactionId };
+          });
+          return { statusCode: 201, body: result };
+        } catch (err) {
+          handleDbError(err);
+        }
+      },
+    );
   }
 
-  async transferBetweenUsers(data: TransferRequest, idempotencyKey: string) {
-    const { fromUserId, toUserId, amount } = data;
+  async withdraw(userId: string, input: WithdrawInput, idempotencyKey: string) {
+    return this.idempotency.run<WithdrawResult>(
+      { key: idempotencyKey, userId, endpoint: "POST /wallets/withdraw", requestBody: input },
+      async () => {
+        try {
+          const result = await TransactionModel.transaction(async (trx) => {
+            const wallet = await this.lockWallet(userId, trx);
+            const amount = normalize(input.amount);
 
-    try {
-      await this.validateTransferRules(data, idempotencyKey);
+            const balance = await this.ledgerRepository.getBalanceByWalletId(wallet.id, trx);
+            if (!gte(balance, amount)) {
+              throw new InvalidRequestError("Insufficient funds");
+            }
 
-      return await Wallet.transaction(async (trx) => {
-        const wallets = await this.walletRepository.lockWalletsByUserIds([fromUserId, toUserId], trx);
+            const transactionId = randomUUID();
+            await this.ledgerRepository.saveBulk(
+              [{ id: randomUUID(), walletId: wallet.id, amount: neg(amount), type: "debit", reference: transactionId, transactionId }],
+              trx,
+            );
 
-        const { sender, receiver } = this.getWalletsForTransfer(fromUserId, toUserId, wallets);
+            await this.transactionRepository.save(
+              {
+                id: transactionId,
+                type: "withdrawal",
+                amount,
+                fromUserId: userId,
+                toUserId: null,
+                status: "completed",
+                idempotencyKey,
+              } as Partial<ITransaction>,
+              trx,
+            );
 
-        await this.checkAvailableBalance(sender.id, amount, trx);
-
-        await this.updateWalletsBalances(sender.id, receiver.id, amount, trx);
-
-        const transactionId = randomUUID();
-
-        await this.recordFinancialEntries(
-          { id: transactionId, amount, type: "transfer", fromUserId, toUserId, status: "completed", idempotencyKey },
-          [
-            { walletId: sender.id, amount: -amount, type: "debit" },
-            { walletId: receiver.id, amount, type: "credit" },
-          ],
-          transactionId,
-          trx,
-        );
-
-        return { fromWalletId: sender.id, toWalletId: receiver.id, amount };
-      });
-    } catch (err: any) {
-      handleDbError(err);
-      throw err;
-    }
+            const newBalance = await this.ledgerRepository.getBalanceByWalletId(wallet.id, trx);
+            return { walletId: wallet.id, balance: newBalance, transactionId };
+          });
+          return { statusCode: 200, body: result };
+        } catch (err) {
+          handleDbError(err);
+        }
+      },
+    );
   }
 
-  async getWalletBalance(userId: string) {
-    const wallet = await this.getWalletByUserId(userId);
+  async transfer(fromUserId: string, input: TransferInput, idempotencyKey: string) {
+    if (fromUserId === input.toUserId) {
+      throw new InvalidRequestError("Cannot transfer to your own wallet");
+    }
+
+    return this.idempotency.run<TransferResult>(
+      { key: idempotencyKey, userId: fromUserId, endpoint: "POST /wallets/transfer", requestBody: input },
+      async () => {
+        try {
+          const result = await TransactionModel.transaction(async (trx) => {
+            const wallets = await this.walletRepository.lockWalletsByUserIds([fromUserId, input.toUserId], trx);
+            const sender = wallets.find((w) => w.userId === fromUserId);
+            const receiver = wallets.find((w) => w.userId === input.toUserId);
+            if (!sender) throw new NotFoundError("Sender wallet not found");
+            if (!receiver) throw new NotFoundError("Recipient wallet not found");
+
+            const amount = normalize(input.amount);
+            const senderBalance = await this.ledgerRepository.getBalanceByWalletId(sender.id, trx);
+            if (!gte(senderBalance, amount)) {
+              throw new InvalidRequestError("Insufficient funds");
+            }
+
+            const transactionId = randomUUID();
+            await this.ledgerRepository.saveBulk(
+              [
+                { id: randomUUID(), walletId: sender.id, amount: neg(amount), type: "debit", reference: transactionId, transactionId },
+                { id: randomUUID(), walletId: receiver.id, amount, type: "credit", reference: transactionId, transactionId },
+              ],
+              trx,
+            );
+
+            await this.transactionRepository.save(
+              {
+                id: transactionId,
+                type: "transfer",
+                amount,
+                fromUserId,
+                toUserId: input.toUserId,
+                status: "completed",
+                idempotencyKey,
+              } as Partial<ITransaction>,
+              trx,
+            );
+
+            return { fromWalletId: sender.id, toWalletId: receiver.id, amount, transactionId };
+          });
+          return { statusCode: 200, body: result };
+        } catch (err) {
+          handleDbError(err);
+        }
+      },
+    );
+  }
+
+  async getBalance(userId: string): Promise<BalanceResult> {
+    const wallet = await this.requireWallet(userId);
     const balance = await this.ledgerRepository.getBalanceByWalletId(wallet.id);
-
     return { walletId: wallet.id, balance };
   }
 
-  private async getWalletByUserId(userId: string, trx?: IKnexTransaction) {
-    const findWallet = await this.walletRepository.findByUserId(userId, trx);
-
-    if (!findWallet) throw new NotFoundError("Wallet not found");
-
-    return findWallet;
+  async listTransactions(userId: string, limit: number, cursor?: { createdAt: string; id: string }) {
+    await this.requireWallet(userId);
+    const items = await this.transactionRepository.listForUser({ userId, limit, cursor });
+    const last = items.at(-1);
+    const nextCursor = items.length === limit && last ? { createdAt: last.createdAt, id: last.id } : null;
+    return { items, nextCursor };
   }
 
-  private getWalletsForTransfer(fromUserId: string, toUserId: string, wallets: Wallet[]) {
-    const sender = wallets.find((wallet) => wallet.userId === fromUserId);
-    const receiver = wallets.find((wallet) => wallet.userId === toUserId);
-
-    if (!sender) throw new NotFoundError("Sender wallet not found");
-    if (!receiver) throw new NotFoundError("Receiver wallet not found");
-
-    return { sender, receiver };
+  private async lockWallet(userId: string, trx: KnexTransaction): Promise<Wallet> {
+    const wallet = await this.walletRepository.lockWalletByUserId(userId, trx);
+    if (!wallet) throw new NotFoundError("Wallet not found");
+    return wallet;
   }
 
-  private async checkAvailableBalance(senderId: string, transferAmount: number, trx: IKnexTransaction) {
-    const balance = await this.ledgerRepository.getBalanceByWalletId(senderId, trx);
-
-    if (balance < transferAmount) throw new InvalidRequestError("Insufficient funds");
-  }
-
-  private async updateWalletsBalances(senderId: string, receiverId: string, amount: number, trx: IKnexTransaction) {
-    await this.walletRepository.incrementBalance(senderId, -amount, trx);
-    await this.walletRepository.incrementBalance(receiverId, amount, trx);
-  }
-
-  private async validateTransferRules(data: TransferRequest, idempotencyKey: string) {
-    if (data.fromUserId === data.toUserId) {
-      throw new InvalidRequestError("Cannot transfer to same wallet");
-    }
-    await this.validateIdempotency(idempotencyKey);
-  }
-
-  private async validateIdempotency(key: string) {
-    const existing = await this.transactionRepository.findByIdempotencyKey(key);
-    if (existing) throw new DuplicateError("Request already processed.");
-  }
-
-  private async recordFinancialEntries(
-    transactionData: Partial<ITransaction>,
-    ledgerEntries: { walletId: string; amount: number; type: string }[],
-    transactionIdOrTrx: string | IKnexTransaction,
-    maybeTrx?: IKnexTransaction,
-  ) {
-    // Handle overloaded parameters from different flows
-    const transactionId = typeof transactionIdOrTrx === "string" ? transactionIdOrTrx : (transactionData.id as string);
-    const trx = typeof transactionIdOrTrx === "string" ? maybeTrx : transactionIdOrTrx;
-
-    const formattedEntries = ledgerEntries.map((entry) => ({
-      ...entry,
-      id: randomUUID(),
-      reference: transactionId,
-    }));
-
-    await this.ledgerRepository.saveBulk(formattedEntries, trx);
-    await this.transactionRepository.save(transactionData, trx);
+  private async requireWallet(userId: string): Promise<Wallet> {
+    const wallet = await this.walletRepository.findByUserId(userId);
+    if (!wallet) throw new NotFoundError("Wallet not found");
+    return wallet;
   }
 }

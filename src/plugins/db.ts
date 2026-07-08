@@ -1,6 +1,6 @@
 import fp from "fastify-plugin";
-import { FastifyInstance } from "fastify";
-import { getKnexInstance } from "../database";
+import type { FastifyInstance } from "fastify";
+import { getKnexInstance } from "../db";
 
 async function dbPlugin(app: FastifyInstance) {
   const db = getKnexInstance();
@@ -12,4 +12,4 @@ async function dbPlugin(app: FastifyInstance) {
   });
 }
 
-export default fp(dbPlugin);
+export default fp(dbPlugin, { name: "db" });

@@ -1,7 +1,7 @@
 import "reflect-metadata";
-import { beforeAll, afterAll, beforeEach } from "vitest";
+import { afterAll, beforeAll, beforeEach } from "vitest";
 import App from "../app";
-import { getKnexInstance } from "../database";
+import { getKnexInstance } from "../db";
 
 let serverInstance: App;
 
@@ -10,19 +10,18 @@ beforeAll(async () => {
   await serverInstance.init();
 });
 
-export const server = () => serverInstance;
-
-export const dbNode = () => getKnexInstance();
+afterAll(async () => {
+  await serverInstance.close();
+});
 
 beforeEach(async () => {
-  // Clean tables before each test
   const db = getKnexInstance();
+  await db("idempotency_keys").del();
   await db("ledger_entries").del();
   await db("transactions").del();
   await db("wallets").del();
   await db("users").del();
 });
 
-afterAll(async () => {
-  await serverInstance.close();
-});
+export const server = () => serverInstance;
+export const dbNode = () => getKnexInstance();
