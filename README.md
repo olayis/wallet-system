@@ -1,106 +1,95 @@
-# Wallet Backend System
+# Wallet System
 
-A fintech-inspired backend system that simulates core wallet and payment operations using a **ledger-based accounting model** and **layered architecture**.
+Ledger-backed wallet API. Each user has one wallet; balances are derived from append-only ledger entries; mutating endpoints require a JWT and a UUID idempotency key.
 
-## Features
+## Stack
 
-- **Layered Architecture**: Decoupled Controllers, Services, and Repositories.
-- **Double-Entry Ledger**: Financial source of truth using `credit` and `debit` entries.
-- **Idempotent APIs**: Native database-level uniqueness for safe retries via `x-idempotency-key`.
-- **Concurrency-Safe**: Row-level locking to prevent race conditions during transfers.
-- **Isolated Testing**: Dedicated test database setup with automated migrations.
+- Node.js 20, TypeScript, Fastify
+- PostgreSQL via Knex / Objection.js
+- Zod for I/O validation, fastify-type-provider-zod for route schemas
+- tsyringe for DI
+- Vitest + Supertest
 
-## Tech Stack
-
-- **Runtime**: Node.js (TypeScript)
-- **Framework**: Fastify
-- **ORM/Query Builder**: Objection.js / Knex.js
-- **Database**: PostgreSQL
-- **DI/IoC**: tsyringe
-- **Validation**: Zod
-- **Testing**: Vitest + Supertest
-
-## Core Design Principles
-
-### 1. Ledger-Based Accounting
-
-Balances are derived from immutable ledger entries.
-`Balance = SUM(ledger_entries.amount)`
-This ensures a fully auditable system and prevents drift between "cached" balances and transaction history.
-
-### 2. Idempotency
-
-All financial mutation endpoints require a valid UUID in the `x-idempotency-key` header. This prevents duplicate processing of the same request at the database engine level.
-
-## Getting Started
-
-### 1. Setup Environment
-
-Create a `.env` file in the root based on the following template:
+## Quick start
 
 ```bash
-PORT=3000
-DB_HOST=localhost
-DB_PORT=5432
-DB_NAME=wallet_db
-DB_NAME_TEST=wallet_db_test
-DB_USER=your_user
-DB_PASSWORD=your_password
-```
-
-### 2. Create Databases
-
-```bash
-# Development Database
-createdb wallet_db
-
-# Test Database
-createdb wallet_db_test
-```
-
-### 3. Installation & Database Init
-
-```bash
+cp .env.example .env
+docker compose up -d postgres
 npm install
-npm run knex -- migrate:latest
+npm run migrate:latest
+npm run dev
 ```
 
-### 4. Running the App
+Or run everything in containers:
 
 ```bash
-# Development mode
-npm run dev
-
-# Run test suite
-npm test
+docker compose up --build
 ```
 
-## API Documentation
+## Configuration
 
-### Endpoints
+All environment variables are listed in `.env.example`. The process refuses to boot if any required variable is missing or invalid; check stderr for the exact field. `JWT_SECRET` must be at least 32 characters.
 
-| Method | Endpoint                   | Description                                                 |
-| ------ | -------------------------- | ----------------------------------------------------------- |
-| `POST` | `/users`                   | Create a new user.                                          |
-| `POST` | `/wallets/deposit`         | Deposit funds. Requires `x-idempotency-key`.                |
-| `POST` | `/wallets/transfer`        | Transfer funds between users. Requires `x-idempotency-key`. |
-| `GET`  | `/wallets/:userId/balance` | Retrieve real-time balance for a user.                      |
-| `GET`  | `/livez`                   | System health check.                                        |
-| `GET`  | `/readyz`                  | System health check.                                        |
+## Scripts
 
-### Header Requirements
+| Script | What it does |
+| --- | --- |
+| `npm run dev` | ts-node-dev with respawn |
+| `npm run build` | Compile to `dist/` |
+| `npm start` | Run the compiled server |
+| `npm test` | Run the full vitest suite |
+| `npm run typecheck` | `tsc --noEmit` |
+| `npm run lint` | ESLint (flat config) |
+| `npm run migrate:latest` | Apply pending migrations |
+| `npm run migrate:rollback` | Roll back the last batch |
 
-- `x-idempotency-key`: **Required** for wallet's POST operations. Must be a valid UUID.
+## API
 
-## Directory Structure
+All money-moving endpoints require:
 
-```text
+- `Authorization: Bearer <jwt>` (from `/auth/login` or `/auth/register`)
+- `x-idempotency-key: <uuid v4>`
+
+Amounts are JSON strings with up to 4 decimal places; the API echoes them in canonical `numeric(19,4)` form.
+
+| Method | Path | Notes |
+| --- | --- | --- |
+| `POST` | `/auth/register` | Creates user + wallet, returns token |
+| `POST` | `/auth/login` | Returns token |
+| `GET` | `/wallets/balance` | Authenticated user's balance |
+| `POST` | `/wallets/deposit` | `{ amount }` |
+| `POST` | `/wallets/withdraw` | `{ amount }` |
+| `POST` | `/wallets/transfer` | `{ toUserId, amount }` |
+| `GET` | `/wallets/transactions?limit=&cursor=` | Reverse-chronological history with cursor pagination |
+| `GET` | `/livez` | Process is up |
+| `GET` | `/readyz` | Process is ready (DB reachable) |
+
+### Idempotency semantics
+
+A repeated request with the same `x-idempotency-key` is replayed: the original status code and response body are returned. Reusing a key with a different body returns `400`. A key issued to user A cannot be claimed by user B (`409`).
+
+## Layout
+
+```
 src/
-├── config/             # App and Knex configurations
-├── db/                 # Migrations and Seeds
-├── modules/
-│   ├── users/          # User domain
-│   └── wallets/        # Core wallet logic (Services, Repositories, Controllers)
-├── shared/             # Middlewares, Errors, and Utilities
-└── tests/              # Vitest suites and global setup
+  config/          env, app, knex, logger
+  db/              knex bootstrap, migrations
+  modules/
+    auth/          register, login, JWT issuance
+    idempotency/   request-replay store
+    wallets/       deposit, withdraw, transfer, balance, history
+    ledgers/       append-only ledger entries
+    users/         user model + repo
+    health/        livez / readyz
+  plugins/         db, security, auth fastify plugins
+  shared/          errors, repositories, utils, money
+  tests/
 ```
+
+## Design notes
+
+- **Single source of truth:** balances are `SUM(amount)` over `ledger_entries`. There is no cached `wallets.balance` column.
+- **Money:** stored as `numeric(19,4)`, returned by `pg` as a string, manipulated through `decimal.js`. JS `number` never touches a balance.
+- **Idempotency:** dedicated `idempotency_keys` table per `(user, key)` storing the response body for replay; backed by the `UNIQUE` constraint on `transactions.idempotency_key` for defense in depth.
+- **Concurrency:** transfers acquire `FOR UPDATE` on both wallets in stable id order. Deposits also lock the wallet row to prevent interleaving with a concurrent transfer.
+- **Schema invariants** are enforced in Postgres: `CHECK (amount > 0)`, status enum, transaction-shape check (`deposit` sets `to_user_id`, `transfer` sets both ids and distinct, `withdrawal` sets `from_user_id`), ledger sign matches type.
