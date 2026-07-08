@@ -1,28 +1,52 @@
 import { z } from "zod";
+import { moneySchema } from "../../../shared/utils/money";
 
-export const depositSchema = z.object({
-  userId: z.uuid({ message: "Invalid User ID format" }),
-  amount: z.number({ message: "Amount is required" }).positive({ message: "Amount must be a positive number" }),
-});
-
-export const transferSchema = z
-  .object({
-    fromUserId: z.uuid({ message: "Invalid Sender User ID format" }),
-    toUserId: z.uuid({ message: "Invalid Recipient User ID format" }),
-    amount: z.number({ message: "Amount is required" }).positive({ message: "Amount must be a positive number" }),
-  })
-  .refine((data) => data.fromUserId !== data.toUserId, {
-    message: "Cannot transfer to the same wallet",
-    path: ["toUserId"],
-  });
-
-export const getWalletBalanceSchema = z.object({
-  userId: z.uuid({ message: "Invalid User ID format" }),
-});
-
-export const idempotencyHeaderSchema = z.looseObject({
+export const idempotencyHeaderSchema = z.object({
   "x-idempotency-key": z.uuid({ message: "x-idempotency-key must be a valid UUID" }),
 });
 
-export type DepositRequest = z.infer<typeof depositSchema>;
-export type TransferRequest = z.infer<typeof transferSchema>;
+export const depositBodySchema = z.object({
+  amount: moneySchema,
+});
+
+export const withdrawBodySchema = z.object({
+  amount: moneySchema,
+});
+
+export const transferBodySchema = z.object({
+  toUserId: z.uuid({ message: "Invalid recipient user id" }),
+  amount: moneySchema,
+});
+
+export const transactionListQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(25),
+  cursor: z.string().optional(),
+});
+
+export const transactionListReplySchema = z.object({
+  success: z.literal(true),
+  message: z.string(),
+  data: z.object({
+    items: z.array(
+      z.object({
+        id: z.string(),
+        type: z.enum(["deposit", "transfer", "withdrawal"]),
+        amount: z.string(),
+        fromUserId: z.string().nullable(),
+        toUserId: z.string().nullable(),
+        status: z.string(),
+        createdAt: z.string(),
+      }),
+    ),
+  }),
+  meta: z
+    .object({
+      nextCursor: z.string().nullable(),
+    })
+    .optional(),
+});
+
+export type DepositInput = z.infer<typeof depositBodySchema>;
+export type WithdrawInput = z.infer<typeof withdrawBodySchema>;
+export type TransferInput = z.infer<typeof transferBodySchema>;
+export type TransactionListQuery = z.infer<typeof transactionListQuerySchema>;

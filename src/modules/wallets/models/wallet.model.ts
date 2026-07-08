@@ -5,20 +5,28 @@ import { Transaction } from "./transaction.model";
 import { LedgerEntry } from "../../ledgers/models/ledger-entry.model";
 
 export class Wallet extends Model {
-  static readonly tableName = DB_TABLES.WALLETS;
+  static override readonly tableName = DB_TABLES.WALLETS;
 
-  id: string;
-  userId: string;
-  balance: number;
-  createdAt: string;
+  id!: string;
+  userId!: string;
+  createdAt!: string;
+  updatedAt!: string;
 
-  static readonly relationMappings = {
+  static override readonly relationMappings = {
     user: {
       relation: Model.BelongsToOneRelation,
       modelClass: () => User,
       join: {
         from: `${DB_TABLES.WALLETS}.userId`,
         to: `${DB_TABLES.USERS}.id`,
+      },
+    },
+    ledgerEntries: {
+      relation: Model.HasManyRelation,
+      modelClass: () => LedgerEntry,
+      join: {
+        from: `${DB_TABLES.WALLETS}.id`,
+        to: `${DB_TABLES.LEDGER_ENTRIES}.walletId`,
       },
     },
     transactionsFrom: {
@@ -35,14 +43,6 @@ export class Wallet extends Model {
       join: {
         from: `${DB_TABLES.WALLETS}.userId`,
         to: `${DB_TABLES.TRANSACTIONS}.toUserId`,
-      },
-    },
-    ledgerEntries: {
-      relation: Model.HasManyRelation,
-      modelClass: () => LedgerEntry,
-      join: {
-        from: `${DB_TABLES.WALLETS}.id`,
-        to: `${DB_TABLES.LEDGER_ENTRIES}.walletId`,
       },
     },
   };

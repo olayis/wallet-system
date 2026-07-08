@@ -9,26 +9,20 @@ export class WalletRepository extends BaseRepository<Wallet> {
     super(Wallet);
   }
 
-  async findByUserId(userId: string, trx?: Transaction): Promise<Wallet | undefined> {
-    return await this.findOne({ userId }, trx);
+  findByUserId(userId: string, trx?: Transaction): Promise<Wallet | undefined> {
+    return this.findOne({ userId } as Partial<Wallet>, trx);
   }
 
+  // ordering by id gives a stable lock acquisition order across concurrent transfers
   async lockWalletsByUserIds(userIds: string[], trx: Transaction): Promise<Wallet[]> {
     return await this.query(trx).whereIn("userId", userIds).orderBy("id").forUpdate();
   }
 
-  async updateBalance(walletId: string, newBalance: number, trx?: Transaction): Promise<Wallet> {
-    return await this.updateById(walletId, { balance: newBalance }, trx);
+  async lockWalletByUserId(userId: string, trx: Transaction): Promise<Wallet | undefined> {
+    return await this.query(trx).where({ userId }).forUpdate().first();
   }
 
-  async incrementBalance(walletId: string, amount: number, trx?: Transaction): Promise<void> {
-    await this.query(trx)
-      .findById(walletId)
-      .patch({ balance: this.model.raw("balance + ?", [amount]) })
-      .returning("*");
-  }
-
-  async createWallet(id: string, userId: string, trx?: Transaction): Promise<Wallet> {
-    return await this.save({ id, userId, balance: 0 }, trx);
+  createWallet(id: string, userId: string, trx?: Transaction): Promise<Wallet> {
+    return this.save({ id, userId } as Partial<Wallet>, trx);
   }
 }
