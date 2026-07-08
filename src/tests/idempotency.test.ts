@@ -1,40 +1,50 @@
-import "reflect-metadata";
 import { randomUUID } from "node:crypto";
-import { expect, it } from "vitest";
-import { server, dbNode } from "./setup";
-import request from "supertest";
-import { TEST_PASSWORD_HASH } from "../constants/testVariables";
+import { describe, expect, it } from "vitest";
+import { dbNode } from "./setup";
+import { deposit, registerUser } from "./helpers";
 
-const getTestServer = () => server();
+describe("idempotency", () => {
+  it("replays the original response on repeat with the same key", async () => {
+    const user = await registerUser();
+    const key = randomUUID();
 
-it("should not duplicate transaction with same idempotency key", async () => {
-  const userId = randomUUID();
+    const first = await deposit(user, "5000", key);
+    const second = await deposit(user, "5000", key);
 
-  await dbNode()("users").insert({
-    id: userId,
-    email: "test@example.com",
-    passwordHash: TEST_PASSWORD_HASH,
+    expect(first.status).toBe(201);
+    expect(second.status).toBe(201);
+    expect(second.body).toEqual(first.body);
+
+    const ledger = await dbNode()("ledger_entries");
+    expect(ledger.length).toBe(1);
   });
 
-  await dbNode()("wallets").insert({
-    id: randomUUID(),
-    userId: userId,
-    balance: 0,
+  it("400s when the same key is reused with a different body", async () => {
+    const user = await registerUser();
+    const key = randomUUID();
+
+    const first = await deposit(user, "10", key);
+    const second = await deposit(user, "20", key);
+
+    expect(first.status).toBe(201);
+    expect(second.status).toBe(400);
   });
 
-  const key = randomUUID();
+  it("does not leak idempotency keys across users", async () => {
+    const a = await registerUser();
+    const b = await registerUser();
+    const key = randomUUID();
 
-  await request(getTestServer().getInstance().server).post("/wallets/deposit").set("x-idempotency-key", key).send({
-    userId,
-    amount: 5000,
+    const first = await deposit(a, "10", key);
+    const second = await deposit(b, "10", key);
+
+    expect(first.status).toBe(201);
+    expect(second.status).toBe(409);
   });
 
-  await request(getTestServer().getInstance().server).post("/wallets/deposit").set("x-idempotency-key", key).send({
-    userId,
-    amount: 5000,
+  it("rejects non-uuid idempotency keys", async () => {
+    const user = await registerUser();
+    const res = await deposit(user, "10", "not-a-uuid");
+    expect(res.status).toBe(400);
   });
-
-  const ledger = await dbNode()("ledger_entries");
-
-  expect(ledger.length).toBe(1);
 });

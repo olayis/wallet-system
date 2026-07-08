@@ -1,43 +1,45 @@
-import "reflect-metadata";
-import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import request from "supertest";
-import httpStatus from "http-status";
-import { server, dbNode } from "./setup";
-import { TEST_PASSWORD_HASH } from "../constants/testVariables";
+import { dbNode } from "./setup";
+import { deposit, getBalance, registerUser } from "./helpers";
 
-const getTestServer = () => server();
+describe("wallet deposit & balance", () => {
+  it("credits the wallet via the ledger", async () => {
+    const user = await registerUser();
 
-describe("Wallet System", () => {
-  it("should deposit successfully", async () => {
-    const userId = randomUUID();
+    const res = await deposit(user, "500.0000");
+    expect(res.status).toBe(201);
+    expect(res.body.data.balance).toBe("500.0000");
 
-    // Create User and Wallet
-    await dbNode().transaction(async (trx) => {
-      await trx("users").insert({
-        id: userId,
-        email: "test@yopmail.com",
-        passwordHash: TEST_PASSWORD_HASH,
-      });
+    const balance = await getBalance(user);
+    expect(balance.body.data.balance).toBe("500.0000");
 
-      await trx("wallets").insert({
-        id: randomUUID(),
-        userId: userId,
-        balance: 0,
-      });
-    });
-
-    const res = await request(getTestServer().getInstance().server)
-      .post("/wallets/deposit")
-      .set("x-idempotency-key", randomUUID())
-      .send({ userId, amount: 500 });
-
-    expect(res.status).toBe(httpStatus.CREATED);
-
-    // Check ledger
     const ledger = await dbNode()("ledger_entries");
-
     expect(ledger.length).toBe(1);
-    expect(Number(ledger[0].amount)).toBe(500);
+    expect(ledger[0].amount).toBe("500.0000");
+    expect(ledger[0].type).toBe("credit");
+  });
+
+  it("rejects non-positive amounts", async () => {
+    const user = await registerUser();
+    const zero = await deposit(user, "0");
+    const negative = await deposit(user, "-1");
+    expect(zero.status).toBe(400);
+    expect(negative.status).toBe(400);
+  });
+
+  it("rejects amounts with too many decimal places", async () => {
+    const user = await registerUser();
+    const res = await deposit(user, "1.123456");
+    expect(res.status).toBe(400);
+  });
+
+  it("does not lose precision on fractional deposits", async () => {
+    const user = await registerUser();
+    for (let i = 0; i < 10; i++) {
+      const res = await deposit(user, "0.1");
+      expect(res.status).toBe(201);
+    }
+    const balance = await getBalance(user);
+    expect(balance.body.data.balance).toBe("1.0000");
   });
 });

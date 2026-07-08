@@ -1,52 +1,62 @@
-import "reflect-metadata";
 import { randomUUID } from "node:crypto";
-import { expect, it } from "vitest";
-import request from "supertest";
-import httpStatus from "http-status";
-import { server, dbNode } from "./setup";
-import { TEST_PASSWORD_HASH } from "../constants/testVariables";
+import { describe, expect, it } from "vitest";
+import { dbNode } from "./setup";
+import { deposit, getBalance, registerUser, transfer } from "./helpers";
 
-const getTestServer = () => server();
+describe("wallet transfer", () => {
+  it("transfers between users and produces 3 ledger rows (deposit + debit + credit)", async () => {
+    const a = await registerUser();
+    const b = await registerUser();
 
-it("should transfer between users", async () => {
-  const userA = randomUUID();
-  const userB = randomUUID();
+    await deposit(a, "2000.0000");
 
-  const walletA = randomUUID();
-  const walletB = randomUUID();
+    const res = await transfer(a, b.id, "750.5000");
+    expect(res.status).toBe(200);
 
-  await dbNode()("users").insert([
-    { id: userA, email: "a@yopmail.com", passwordHash: TEST_PASSWORD_HASH },
-    { id: userB, email: "b@yopmail.com", passwordHash: TEST_PASSWORD_HASH },
-  ]);
+    const ledger = await dbNode()("ledger_entries");
+    expect(ledger.length).toBe(3);
 
-  // Create wallets for users
-  await dbNode()("wallets").insert([
-    { id: walletA, userId: userA, balance: 0 },
-    { id: walletB, userId: userB, balance: 0 },
-  ]);
-
-  // Seed balance using ledger
-  await dbNode()("ledger_entries").insert({
-    id: randomUUID(),
-    walletId: walletA,
-    amount: 2000,
-    type: "credit",
-    reference: randomUUID(),
+    const balA = await getBalance(a);
+    const balB = await getBalance(b);
+    expect(balA.body.data.balance).toBe("1249.5000");
+    expect(balB.body.data.balance).toBe("750.5000");
   });
 
-  const res = await request(getTestServer().getInstance().server)
-    .post("/wallets/transfer")
-    .set("x-idempotency-key", randomUUID())
-    .send({
-      fromUserId: userA,
-      toUserId: userB,
-      amount: 1000,
-    });
+  it("rejects insufficient funds", async () => {
+    const a = await registerUser();
+    const b = await registerUser();
+    await deposit(a, "10");
+    const res = await transfer(a, b.id, "11");
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/insufficient/i);
+  });
 
-  expect(res.status).toBe(httpStatus.OK);
+  it("rejects self-transfer", async () => {
+    const a = await registerUser();
+    await deposit(a, "100");
+    const res = await transfer(a, a.id, "1");
+    expect(res.status).toBe(400);
+  });
 
-  const ledger = await dbNode()("ledger_entries");
+  it("404s when recipient does not exist", async () => {
+    const a = await registerUser();
+    await deposit(a, "100");
+    const res = await transfer(a, randomUUID(), "1");
+    expect(res.status).toBe(404);
+  });
 
-  expect(ledger.length).toBe(3); // 1 deposit + 2 transfer entries
+  it("survives concurrent reciprocal transfers without deadlock", async () => {
+    const a = await registerUser();
+    const b = await registerUser();
+    await deposit(a, "1000");
+    await deposit(b, "1000");
+
+    const results = await Promise.all([transfer(a, b.id, "100"), transfer(b, a.id, "100")]);
+    for (const r of results) expect(r.status).toBe(200);
+
+    const balA = await getBalance(a);
+    const balB = await getBalance(b);
+    expect(balA.body.data.balance).toBe("1000.0000");
+    expect(balB.body.data.balance).toBe("1000.0000");
+  });
 });
