@@ -9,7 +9,11 @@ export class UserRepository extends BaseRepository<User> {
     super(User);
   }
 
-  async createUser(id: string, email: string, passwordHash: string, trx?: Transaction): Promise<User> {
-    return await this.save({ id, email, passwordHash }, trx);
+  findByEmail(email: string, trx?: Transaction): Promise<User | undefined> {
+    return this.findOne({ email } as Partial<User>, trx);
+  }
+
+  createUser(id: string, email: string, passwordHash: string, trx?: Transaction): Promise<User> {
+    return this.save({ id, email, passwordHash } as Partial<User>, trx);
   }
 }
