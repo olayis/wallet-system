@@ -1,5 +1,4 @@
 import { defineConfig } from "vitest/config";
-import path from "node:path";
 
 export default defineConfig({
   test: {
@@ -7,12 +6,9 @@ export default defineConfig({
     environment: "node",
     setupFiles: ["./src/tests/setup.ts"],
     globalSetup: ["./src/tests/global-setup.ts"],
+    include: ["src/tests/**/*.test.ts"],
+    exclude: ["dist/**", "node_modules/**"],
     fileParallelism: false,
-  },
-  resolve: {
-    alias: {
-      "@config": path.resolve(__dirname, "./src/config"),
-      "@shared": path.resolve(__dirname, "./src/shared"),
-    },
+    hookTimeout: 30_000,
   },
 });
