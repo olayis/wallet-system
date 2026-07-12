@@ -1,8 +1,9 @@
 import { z } from "zod";
 import { moneySchema } from "../../../shared/utils/money";
+import { requiredAware } from "../../../config/validation.config";
 
 export const idempotencyHeaderSchema = z.object({
-  "x-idempotency-key": z.uuid({ message: "x-idempotency-key must be a valid UUID" }),
+  "x-idempotency-key": z.uuid({ error: requiredAware("x-idempotency-key must be a valid UUID") }),
 });
 
 export const depositBodySchema = z.object({
@@ -14,7 +15,7 @@ export const withdrawBodySchema = z.object({
 });
 
 export const transferBodySchema = z.object({
-  toUserId: z.uuid({ message: "Invalid recipient user id" }),
+  toUserId: z.uuid({ error: requiredAware("Invalid recipient user id") }),
   amount: moneySchema,
 });
 

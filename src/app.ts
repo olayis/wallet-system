@@ -14,6 +14,7 @@ import {
 import { ZodError } from "zod";
 
 import { loggerConfig } from "./config/logger.config";
+import { configureValidation } from "./config/validation.config";
 import bootstrapApp from "./bootstrap";
 import dbPlugin from "./plugins/db";
 import securityPlugin from "./plugins/security";
@@ -34,6 +35,7 @@ class App {
       bodyLimit: 64 * 1024,
     }).withTypeProvider<ZodTypeProvider>();
 
+    configureValidation();
     this.fastify.setValidatorCompiler(validatorCompiler);
     this.fastify.setSerializerCompiler(serializerCompiler);
 
