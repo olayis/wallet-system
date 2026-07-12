@@ -38,6 +38,19 @@ There is no implicit conversion to `number` anywhere; all arithmetic happens thr
 
 The `wallets.balance` column was removed in `20260501000000_strengthen_money_schema.ts`. There is no cache to drift.
 
+## Balances and scale
+
+Balance is `SELECT SUM(amount) FROM ledger_entries WHERE wallet_id = ?`, backed by the `(wallet_id, created_at)` index. The scan touches only one wallet's rows, so cost grows with the number of ledger entries for that wallet.
+
+The cost appears when a single wallet accumulates a very large number of entries, because the sum is recomputed on every read and on every write inside the locked transaction. The intended path for that case, cheapest first:
+
+1. A covering index on `(wallet_id)` including `amount`, so the sum is index-only.
+2. A cached balance stored on the wallet (or a separate balances row) and updated in the same transaction as the ledger write. Reads become constant time. The ledger stays the source of truth, and the cached value can be rebuilt from it and reconciled.
+3. Periodic balance snapshots, summing only the entries recorded since the latest snapshot.
+4. Partitioning `ledger_entries` and serving the read-only balance endpoint from a replica. The funds check on the write path always reads the primary under the lock.
+
+The ledger-derived balance is the deliberate default because it is auditable and cannot silently drift, which matters more for money than read latency. A cached balance is the optimization to reach for once a wallet becomes hot, not before.
+
 ## Idempotency
 
 Two layers:
@@ -69,6 +82,10 @@ Enforced by Postgres rather than only by the service (defense in depth):
   - `withdrawal`: `from_user_id IS NOT NULL AND to_user_id IS NULL`
 - `ledger_entries.amount <> 0`.
 - `ledger_entries`: `(type='credit' AND amount>0) OR (type='debit' AND amount<0)`.
+
+## Timestamps
+
+Every table records `created_at`. Application rows are write-once: `users`, `wallets`, `transactions`, and `ledger_entries` are never updated after insert, so a generic `updated_at` would always equal `created_at`. The only table that mutates is `idempotency_keys`, which moves from `pending` to `completed` and records that moment in `completed_at`. If transactions later gain a status lifecycle such as reversals, `updated_at` would be reintroduced on that table alone.
 
 ## Auth
 
