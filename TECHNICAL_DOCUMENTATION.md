@@ -70,6 +70,10 @@ Enforced by Postgres rather than only by the service (defense in depth):
 - `ledger_entries.amount <> 0`.
 - `ledger_entries`: `(type='credit' AND amount>0) OR (type='debit' AND amount<0)`.
 
+## Timestamps
+
+Every table records `created_at`. Application rows are write-once: `users`, `wallets`, `transactions`, and `ledger_entries` are never updated after insert, so a generic `updated_at` would always equal `created_at`. The only table that mutates is `idempotency_keys`, which moves from `pending` to `completed` and records that moment in `completed_at`. If transactions later gain a status lifecycle such as reversals, `updated_at` would be reintroduced on that table alone.
+
 ## Auth
 
 - `POST /auth/register` creates the user + wallet in one transaction, hashes the password with `bcrypt` at the configured cost (default 12), returns a JWT.

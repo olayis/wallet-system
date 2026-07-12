@@ -10,7 +10,6 @@ export class Wallet extends Model {
   id!: string;
   userId!: string;
   createdAt!: string;
-  updatedAt!: string;
 
   static override readonly relationMappings = {
     user: {

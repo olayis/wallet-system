@@ -3,6 +3,7 @@ import type { Knex } from "knex";
 export async function up(knex: Knex): Promise<void> {
   await knex.schema.alterTable("wallets", (t) => {
     t.dropColumn("balance");
+    t.dropColumn("updated_at");
   });
   await knex.raw("ALTER TABLE wallets ADD CONSTRAINT wallets_user_id_unique UNIQUE (user_id)");
 
@@ -75,5 +76,6 @@ export async function down(knex: Knex): Promise<void> {
   await knex.raw("ALTER TABLE wallets DROP CONSTRAINT IF EXISTS wallets_user_id_unique");
   await knex.schema.alterTable("wallets", (t) => {
     t.decimal("balance", 14, 2).notNullable().defaultTo(0);
+    t.timestamp("updated_at").notNullable().defaultTo(knex.fn.now());
   });
 }
