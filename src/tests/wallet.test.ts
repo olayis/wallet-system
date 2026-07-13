@@ -33,6 +33,15 @@ describe("wallet deposit & balance", () => {
     expect(res.status).toBe(400);
   });
 
+  it("rejects a non-numeric amount with 400, not 500", async () => {
+    const user = await registerUser();
+    for (const bad of ["abc", "$5", "   "]) {
+      const res = await deposit(user, bad);
+      expect(res.status).toBe(400);
+      expect(res.body.message).toMatch(/numeric/i);
+    }
+  });
+
   it("does not lose precision on fractional deposits", async () => {
     const user = await registerUser();
     for (let i = 0; i < 10; i++) {

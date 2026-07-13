@@ -51,17 +51,23 @@ export function eq(a: Money, b: Money): boolean {
 export const moneySchema = z
   .union([z.string(), z.number()])
   .transform((v) => (typeof v === "number" ? v.toString() : v.trim()))
-  .refine((v) => moneyRegex.test(v), { message: "Amount must be a numeric string" })
-  .refine(
-    (v) => {
-      try {
-        return new Decimal(v).decimalPlaces() <= MONEY_SCALE;
-      } catch {
-        return false;
-      }
-    },
-    { message: `Amount cannot have more than ${MONEY_SCALE} decimal places` },
-  )
-  .refine((v) => new Decimal(v).gt(0), { message: "Amount must be positive" })
-  .refine((v) => new Decimal(v).lte(MAX_AMOUNT), { message: "Amount exceeds maximum" })
-  .transform((v) => normalize(v));
+  .transform((v, ctx) => {
+    if (!moneyRegex.test(v)) {
+      ctx.addIssue({ code: "custom", message: "Amount must be a numeric string" });
+      return z.NEVER;
+    }
+    const amount = new Decimal(v);
+    if (amount.decimalPlaces() > MONEY_SCALE) {
+      ctx.addIssue({ code: "custom", message: `Amount cannot have more than ${MONEY_SCALE} decimal places` });
+      return z.NEVER;
+    }
+    if (!amount.gt(0)) {
+      ctx.addIssue({ code: "custom", message: "Amount must be positive" });
+      return z.NEVER;
+    }
+    if (!amount.lte(MAX_AMOUNT)) {
+      ctx.addIssue({ code: "custom", message: "Amount exceeds maximum" });
+      return z.NEVER;
+    }
+    return normalize(amount);
+  });
