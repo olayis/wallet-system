@@ -170,8 +170,8 @@ sequenceDiagram
         API->>SVC: transfer(sender, recipient, amount)
         SVC->>DB: BEGIN transaction
         SVC->>DB: SELECT ... FOR UPDATE both wallets, ascending id order
-        Note over SVC,DB: fixed lock order prevents A→B / B→A deadlock
-        SVC->>SVC: balance = SUM(ledger); check funds INSIDE the lock
+        Note over SVC,DB: fixed lock order prevents A to B / B to A deadlock
+        SVC->>SVC: balance = SUM(ledger), check funds INSIDE the lock
         alt insufficient funds
             SVC->>DB: ROLLBACK
             SVC-->>Client: insufficient funds error
@@ -185,4 +185,5 @@ sequenceDiagram
         end
     end
 ```
+
 
